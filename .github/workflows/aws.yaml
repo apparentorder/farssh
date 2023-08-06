@@ -1,0 +1,38 @@
+name: deploy to ecr-public
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+  
+jobs:
+
+  deploy_source:
+    name: deploy lambda from source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git clone the repository
+        uses: actions/checkout@v3
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::329261680777:role/farssh-github
+          role-session-name: github-action-push
+          aws-region: us-east-1
+      - name: ecr-public login
+        run:
+          aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+      - name: build and push
+        env:
+          ECR_REPOSITORY: public.ecr.aws/apparentorder/farssh
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REPOSITORY:$IMAGE_TAG image
+          docker tag      $ECR_REPOSITORY:$IMAGE_TAG $ECR_REPOSITORY:latest
+          docker push $ECR_REPOSITORY:$IMAGE_TAG 
+          docker push $ECR_REPOSITORY:latest
+          echo "::set-output name=image::$ECR_REPOSITORY:$IMAGE_TAG"
+        
