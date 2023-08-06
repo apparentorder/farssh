@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+SLEEP_SECONDS=60
+
+connections_prev=42
+
+while true; do
+	sleep $SLEEP_SECONDS
+
+	connections=$(pgrep -l sshd | grep -Fcv '[listener]' || true)
+
+	if test "$connections" -eq 0 -a "$connections_prev" -eq 0; then
+		echo ">>> FarSSH: No active connections, neither now nor ${SLEEP_SECONDS}s ago -- terminating sshd"
+		pkill sshd
+	fi
+
+	connections_prev="$connections"
+done
