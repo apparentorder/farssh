@@ -70,7 +70,7 @@ overrides='{
 				},
 				{
 					"name": "FARSSH_SSH_HOST_RSA_KEY_BASE64",
-					"value": "'$(base64 <"$tempdir/ssh_host_rsa_key")'"
+					"value": "'$(base64 <"$tempdir/ssh_host_rsa_key" | tr -d '\n')'"
 				}
 			]
 		}
