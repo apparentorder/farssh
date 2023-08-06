@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: FarSSH deployment
+
+Parameters:
+  FarSshSuffix:
+    Type: String
+    Default: default
+    AllowedPattern: ^default$
+    ConstraintDescription: For now, only `default` is supported.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+
+  PublicSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+
+  SshPort:
+    Type: Number
+    Default: 20023
+
+Resources:
+  FarSshRole:
+    Type: AWS::IAM::Role
+    Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs.amazonaws.com
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+          # - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # for debugging only (ecs execute command)
+
+  SsmParameterPublicSubnets:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Name: !Sub /farssh/${FarSshSuffix}/public_subnets
+      Value: !Join [",", !Ref PublicSubnets]
+
+  SsmParameterSecurityGroup:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Name: !Sub /farssh/${FarSshSuffix}/security_group
+      Value: !Ref SecurityGroup
+
+  SsmParameterSshPort:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Name: !Sub /farssh/${FarSshSuffix}/ssh_port
+      Value: !Ref SshPort
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub farssh-${FarSshSuffix}
+      GroupDescription: !Sub farssh-${FarSshSuffix}
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref SshPort
+          ToPort: !Ref SshPort
+          CidrIp: 0.0.0.0/0
+      # SecurityGroupEgress defaults to "allow all"
+
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/farssh/${FarSshSuffix}
+      RetentionInDays: 30
+
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: farssh
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+        - CapacityProvider: FARGATE_SPOT
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: farssh
+      ExecutionRoleArn: !Ref FarSshRole
+      Cpu: 256
+      Memory: 512
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ContainerDefinitions:
+        - Name: farssh
+          Essential: true
+          Image: public.ecr.aws/apparentorder/farssh
+          PortMappings:
+            - ContainerPort: !Ref SshPort
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: FARSSH_SSH_PORT
+              Value: !Ref SshPort
