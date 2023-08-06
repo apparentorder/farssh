@@ -57,6 +57,13 @@ Resources:
       Name: !Sub /farssh/${FarSshSuffix}/ssh_port
       Value: !Ref SshPort
 
+  SsmParameterTaskRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Name: !Sub /farssh/${FarSshSuffix}/task_role_arn
+      Value: !GetAtt FarSshRole.Arn
+
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
