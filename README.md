@@ -27,7 +27,9 @@ place it appropriately, e.g. in your `~/bin/` directory, and make it executable.
 
 For example:
 ```
-curl -o ~/bin/farssh https://raw.githubusercontent.com/apparentorder/farssh/main/client/farssh
+curl -o ~/bin/farssh \
+https://raw.githubusercontent.com/apparentorder/farssh/main/client/farssh
+
 chmod 755 ~/bin/farssh
 ```
 
