@@ -17,23 +17,33 @@ jobs:
     name: build and push farssh to ecr-public
     runs-on: ubuntu-latest
     steps:
+    
       - name: Git clone the repository
         uses: actions/checkout@v3
+        
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::329261680777:role/farssh-github
           role-session-name: github-action-push
           aws-region: us-east-1
+          
       - name: ecr-public login
         run:
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+
+      # use qemu + buildx to build arm64 image, per
+      # https://community.ibm.com/community/user/powerdeveloper/blogs/siddhesh-ghadi/2023/02/08/build-multi-arch-images-on-github-actions-with-bui
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: build and push
         env:
           ECR_REPOSITORY: public.ecr.aws/apparentorder/farssh
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG image
-          docker tag      $ECR_REPOSITORY:$IMAGE_TAG $ECR_REPOSITORY:latest
-          docker push $ECR_REPOSITORY:$IMAGE_TAG 
-          docker push $ECR_REPOSITORY:latest
+          docker buildx build --push --platform linux/arm64 --tag $ECR_REPOSITORY:$IMAGE_TAG image
