@@ -106,7 +106,7 @@ Resources:
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: farssh
+      Family: !Sub farssh-${FarSshSuffix}
       ExecutionRoleArn: !Ref FarSshExecutionRole
       TaskRoleArn: !Ref FarSshTaskRole
       Cpu: 256
