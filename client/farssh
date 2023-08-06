@@ -181,6 +181,7 @@ echo "$host $(cat $tempdir/ssh_host_rsa_key.pub)" > "$tempdir/known-hosts"
 # Assemble SSH command line and run it
 
 echo "Starting ssh client ..."
+echo
 
 o_id="IdentityFile $tempdir/ssh_login_key"
 o_idonly="IdentitiesOnly yes"
@@ -188,8 +189,8 @@ o_ukhfile="UserKnownHostsFile $tempdir/known-hosts"
 o_shkc="StrictHostKeyChecking yes"
 o_tunnel="localhost:${TUNNEL_LOCAL_PORT}:${TUNNEL_REMOTE_HOST}:${TUNNEL_REMOTE_PORT}"
 
-cmd_proxy="echo; echo Ready: SOCKS proxy on local port 1080.; echo Press ^C to terminate.; sleep infinity"
-cmd_tunnel="echo; echo Ready: Forwarding from local port ${TUNNEL_LOCAL_PORT}.; echo Press ^C to terminate.; sleep infinity"
+cmd_proxy="echo Ready: SOCKS proxy on local port 1080.; echo Press ^C to terminate.; sleep infinity"
+cmd_tunnel="echo Ready: Forwarding from local port ${TUNNEL_LOCAL_PORT}.; echo Press ^C to terminate.; sleep infinity"
 
 case "$MODE" in
 	raw)    ssh -N -p "$ssh_port" -o "$o_id" -o "$o_idonly" -o "$o_ukhfile" -o "$o_shkc" "$@"           "root@$public_ip" ;;
