@@ -6,6 +6,7 @@ ENV FARSSH_DATE 2023-08-06
 RUN apk add openssh
 RUN sed -i "s/AllowTcpForwarding no/AllowTcpForwarding yes/" /etc/ssh/sshd_config
 
+ADD motd /etc/motd
 ADD entrypoint /farssh-entrypoint
 ADD terminator /farssh-terminator
 
