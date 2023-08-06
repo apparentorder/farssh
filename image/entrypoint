@@ -1,0 +1,32 @@
+#!/bin/sh
+set -e
+
+echo ">>> FarSSH container image $FARSSH_VERSION ($FARSSH_DATE)"
+
+host_algos=$(env | sed -n 's/FARSSH_SSH_HOST_\([A-Z0-9]*\)_KEY_BASE64=.*/\1/p')
+
+echo ">>> FarSSH host keys:"
+for algo in $host_algos; do
+	algo_lower=$(echo "$algo" | tr '[A-Z]' '[a-z]')
+
+	keyfile="/etc/ssh/ssh_host_${algo_lower}_key"
+	eval "key=\"\$FARSSH_SSH_HOST_${algo}_KEY_BASE64\""
+	echo "$key" | base64 -d > "$keyfile"
+	chmod 600 "$keyfile"
+
+	# output fingerprint
+	ssh-keygen -lf "$keyfile"
+done
+
+mkdir ~/.ssh
+echo "$FARSSH_SSH_AUTHORIZED_KEYS" > ~/.ssh/authorized_keys
+chmod -R go-rwx ~/.ssh
+
+echo ">>> FarSSH authorized keys:"
+ssh-keygen -lf ~/.ssh/authorized_keys
+
+sed -i "s/#*Port .*/Port ${FARSSH_SSH_PORT}/" /etc/ssh/sshd_config
+
+/farssh-terminator &
+
+exec "$@"
