@@ -34,5 +34,3 @@ jobs:
           docker tag      $ECR_REPOSITORY:$IMAGE_TAG $ECR_REPOSITORY:latest
           docker push $ECR_REPOSITORY:$IMAGE_TAG 
           docker push $ECR_REPOSITORY:latest
-          echo "::set-output name=image::$ECR_REPOSITORY:$IMAGE_TAG"
-        
