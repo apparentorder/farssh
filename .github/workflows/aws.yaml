@@ -11,7 +11,7 @@ permissions:
 jobs:
 
   deploy_source:
-    name: deploy lambda from source
+    name: build and push farssh to ecr-public
     runs-on: ubuntu-latest
     steps:
       - name: Git clone the repository
