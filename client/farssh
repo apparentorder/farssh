@@ -1,0 +1,201 @@
+#!/bin/sh
+set -e
+
+VERSION=v0.1-devel
+PROVIDER=FARGATE_SPOT
+FARSSH_ID=default
+
+usage() {
+	echo "Usage: $0 {ssh | proxy | [tunnel] <local-port> <remote-host> [<remote-port>] | <ssh options>}" >&2
+	exit 64
+}
+
+# ----------------------------------------------------------------------
+# Setup
+
+case "$1" in
+	"") usage;;
+	-*) MODE=raw;;
+	ssh) MODE=ssh;;
+	proxy) MODE=proxy;;
+	tunnel)
+		MODE=tunnel
+		TUNNEL_LOCAL_PORT="$2"
+		TUNNEL_REMOTE_HOST="$3"
+		TUNNEL_REMOTE_PORT="${4-$2}"
+		;;
+	*)
+		if test -n "$2" && echo "$1" | grep -qE '^[1-9][0-9]*$'; then
+			MODE=tunnel
+			TUNNEL_LOCAL_PORT="$1"
+			TUNNEL_REMOTE_HOST="$2"
+			TUNNEL_REMOTE_PORT="${3-$1}"
+		else
+			usage
+		fi
+		;;
+esac
+
+echo "FarSSH $VERSION"
+
+tempdir=$(mktemp -d /tmp/farssh.XXXXXX) || exit 69
+trap "rm -r $tempdir" SIGINT SIGTERM EXIT
+
+# ----------------------------------------------------------------------
+# Get SSM Parameters
+
+params=$(aws ssm get-parameters-by-path --path "/farssh/$FARSSH_ID" --recursive --query 'Parameters[].[Name, Value]' --output text)
+public_subnets=$(echo "$params" | awk '$1 ~ /public_subnets/ { $1=""; print; }' | sed 's/^[[:space:]]*//' )
+security_group=$(echo "$params" | awk '$1 ~ /security_group/ { $1=""; print; }' | sed 's/^[[:space:]]*//' )
+ssh_port=$(echo "$params" | awk '$1 ~ /ssh_port/ { $1=""; print; }' | sed 's/^[[:space:]]*//' )
+
+public_subnets_json='["'$(echo "$public_subnets" | sed 's/,/","/g')'"]'
+
+# ----------------------------------------------------------------------
+# Generate SSH keys:
+# - the client's key for authentication
+# - the host's key so we can verify it
+
+ssh-keygen -q -N "" -t rsa -f "$tempdir/ssh_host_rsa_key"
+ssh-keygen -q -N "" -t rsa -f "$tempdir/ssh_login_key"
+
+overrides='{
+	"containerOverrides": [
+		{
+			"name": "farssh",
+			"environment": [
+				{
+					"name": "FARSSH_SSH_AUTHORIZED_KEYS",
+					"value": "'$(cat "$tempdir/ssh_login_key.pub")'"
+				},
+				{
+					"name": "FARSSH_SSH_HOST_RSA_KEY_BASE64",
+					"value": "'$(base64 <"$tempdir/ssh_host_rsa_key")'"
+				}
+			]
+		}
+	]
+}'
+
+network_configuration='{
+	"awsvpcConfiguration": {
+		"subnets": '"$public_subnets_json"',
+		"securityGroups": [ "'"$security_group"'" ],
+		"assignPublicIp": "ENABLED"
+	}
+}'
+
+# ----------------------------------------------------------------------
+# Start the FarSSH ECS task
+
+ecs_exec="" # use --enable-execute-command for container debugging
+
+taskArn=$(
+	aws ecs run-task \
+	--cluster farssh \
+	--capacity-provider-strategy capacityProvider=$PROVIDER \
+	--task-definition "farssh-$FARSSH_ID" \
+	$ecs_exec \
+	--overrides "$overrides" \
+	--network-configuration "$network_configuration" \
+	--query 'tasks[].taskArn' \
+	--output text
+)
+
+if test -z "$taskArn" -a "$PROVIDER" = "FARGATE_SPOT"; then
+	echo "Launch failed, retrying without Spot option"
+
+	taskArn=$(
+		aws ecs run-task \
+		--cluster farssh \
+		--capacity-provider-strategy capacityProvider=FARGATE \
+		--task-definition "farssh-$FARSSH_ID" \
+		$ecs_exec \
+		--overrides "$overrides" \
+		--network-configuration "$network_configuration" \
+		--query 'tasks[].taskArn' \
+		--output text
+	)
+fi
+
+taskId=$(echo "$taskArn" | cut -d/ -f3)
+
+echo "Launched FarSSH task: $taskId"
+echo "Waiting for FarSSH task to become ready ..."
+
+while true; do
+	status=$(
+		aws ecs describe-tasks \
+			--cluster farssh \
+			--task "$taskArn" \
+			--query "tasks[].lastStatus" \
+			--output text
+	)
+
+	if test "$status" == "RUNNING"; then
+		break
+	fi
+
+	if test "$status" == "STOPPED"; then
+		echo "ERROR:  ECS task is in status STOPPED; see ECS Console for details" >&2
+		exit 69
+	fi
+
+	sleep 1
+done
+
+eni_id=$(
+	aws ecs describe-tasks \
+		--cluster farssh \
+		--task "$taskArn" \
+		--query "tasks[].attachments[?status == 'ATTACHED'][].details[?name == 'networkInterfaceId'][].value" \
+		--output text
+)
+
+public_ip=$(
+	aws ec2 describe-network-interfaces \
+		--network-interface-ids "$eni_id" \
+		--query 'NetworkInterfaces[].Association.PublicIp' \
+		--output text
+)
+
+echo "Public IP: $public_ip ($eni_id)"
+
+# ----------------------------------------------------------------------
+# Create known-hosts
+
+# Create temporary known-hosts file so the SSH client can verify the remote host's public
+# key that we configured it with.
+#
+# n.b.: host *must* be without port number when the port is 22; this seems to be a quirk of
+# OpenSSH's known-hosts file format.
+#
+
+host="$public_ip"
+if test "$ssh_port" != "22"; then
+	host="[$public_ip]:$ssh_port"
+fi
+echo "$host $(cat $tempdir/ssh_host_rsa_key.pub)" > "$tempdir/known-hosts"
+
+# ----------------------------------------------------------------------
+# Assemble SSH command line and run it
+
+echo "Starting ssh client ..."
+
+o_id="IdentityFile $tempdir/ssh_login_key"
+o_idonly="IdentitiesOnly yes"
+o_ukhfile="UserKnownHostsFile $tempdir/known-hosts"
+o_shkc="StrictHostKeyChecking yes"
+o_tunnel="localhost:${TUNNEL_LOCAL_PORT}:${TUNNEL_REMOTE_HOST}:${TUNNEL_REMOTE_PORT}"
+
+cmd_proxy="echo; echo Ready: SOCKS proxy on local port 1080.; echo Press ^C to terminate.; sleep infinity"
+cmd_tunnel="echo; echo Ready: Forwarding from local port ${TUNNEL_LOCAL_PORT}.; echo Press ^C to terminate.; sleep infinity"
+
+case "$MODE" in
+	raw)    ssh -N -p "$ssh_port" -o "$o_id" -o "$o_idonly" -o "$o_ukhfile" -o "$o_shkc" "$@"           "root@$public_ip" ;;
+	ssh)    ssh    -p "$ssh_port" -o "$o_id" -o "$o_idonly" -o "$o_ukhfile" -o "$o_shkc"                "root@$public_ip" ;;
+	proxy)  ssh    -p "$ssh_port" -o "$o_id" -o "$o_idonly" -o "$o_ukhfile" -o "$o_shkc" -D 1080        "root@$public_ip" "$cmd_proxy" ;;
+	tunnel) ssh    -p "$ssh_port" -o "$o_id" -o "$o_idonly" -o "$o_ukhfile" -o "$o_shkc" -L "$o_tunnel" "root@$public_ip" "$cmd_tunnel" ;;
+	*)      echo "internal error: unknown MODE=$MODE?!" >&2;;
+esac
+
