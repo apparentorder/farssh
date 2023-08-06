@@ -47,3 +47,4 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker buildx build --push --platform linux/arm64 --tag $ECR_REPOSITORY:$IMAGE_TAG image
+          docker buildx build --push --platform linux/arm64 --tag $ECR_REPOSITORY:latest image
