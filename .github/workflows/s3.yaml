@@ -1,0 +1,30 @@
+name: deploy cfn to s3
+on:
+  push:
+    branches:
+      - main
+    paths: 
+      - '.github/workflows/s3.yaml'
+      - 'cloudformation/*'
+
+permissions:
+  id-token: write
+  contents: read
+  
+jobs:
+
+  deploy_source:
+    name: copy cfn to s3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git clone the repository
+        uses: actions/checkout@v3
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::329261680777:role/farssh-github
+          role-session-name: github-action-copy-s3
+          aws-region: eu-central-1
+      - name: copy cfn to s3
+        run:
+          aws s3 sync cloudformation/ s3://farssh/cloudformation/
