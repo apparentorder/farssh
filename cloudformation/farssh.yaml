@@ -27,10 +27,12 @@ Resources:
           Version: '2012-10-17'
           Statement:
           - Effect: Allow
-            Principal:
-              Service:
-                - ecs.amazonaws.com
             Action: sts:AssumeRole
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
@@ -41,10 +43,12 @@ Resources:
           Version: '2012-10-17'
           Statement:
           - Effect: Allow
-            Principal:
-              Service:
-                - ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # for debugging (ecs execute command)
 
