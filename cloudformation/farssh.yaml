@@ -20,7 +20,7 @@ Parameters:
     Default: 20023
 
 Resources:
-  FarSshRole:
+  FarSshExecutionRole:
     Type: AWS::IAM::Role
     Properties:
         AssumeRolePolicyDocument:
@@ -30,11 +30,23 @@ Resources:
             Principal:
               Service:
                 - ecs.amazonaws.com
-                - ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-          # - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # for debugging only (ecs execute command)
+
+  FarSshTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # for debugging (ecs execute command)
 
   SsmParameterPublicSubnets:
     Type: AWS::SSM::Parameter
@@ -56,13 +68,6 @@ Resources:
       Type: String
       Name: !Sub /farssh/${FarSshSuffix}/ssh_port
       Value: !Ref SshPort
-
-  SsmParameterTaskRoleArn:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Type: String
-      Name: !Sub /farssh/${FarSshSuffix}/task_role_arn
-      Value: !GetAtt FarSshRole.Arn
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -98,7 +103,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: farssh
-      ExecutionRoleArn: !Ref FarSshRole
+      ExecutionRoleArn: !Ref FarSshExecutionRole
+      TaskRoleArn: !Ref FarSshTaskRole
       Cpu: 256
       Memory: 512
       RuntimePlatform:
