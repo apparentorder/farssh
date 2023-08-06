@@ -22,4 +22,17 @@ For example, to allow tunnel connections to your RDS instance, modify a correspo
 
 #### Download the FarSSH client
 
-< tbc ... >
+Download the [client](https://raw.githubusercontent.com/apparentorder/farssh/main/client/farssh) (shell script),
+place it appropriately, e.g. in your `~/bin/` directory, and make it executable.
+
+For example:
+```
+curl -o ~/bin/farssh https://raw.githubusercontent.com/apparentorder/farssh/main/client/farssh
+chmod 755 ~/bin/farssh
+```
+
+The client requires and uses the `aws` cli in your environment; the AWS target account, region and
+credentials therefore depend on your environment (awscli config and/or environment variables).
+
+Make sure that your local environment uses the same AWS account and region that you deployed the
+Cloudformation template to.
