@@ -96,6 +96,8 @@ credentials therefore depend on your environment (awscli config and/or environme
 **Note:** Make sure that your local environment uses the same AWS account and region that you deployed the
 Cloudformation template to.
 
+That's it. For usage, see above.
+
 
 
 ## How it works
