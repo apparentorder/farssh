@@ -166,5 +166,5 @@ For bug reports, pull requests and other issues please use Github.
 
 For everything else:
 
-I'm (still) trying to get used to Twitter as @apparentorder. DMs are open.
+I'm (still) trying to get used to X/Twitter as [@apparentorder](https://twitter.com/apparentorder). DMs are open.
 You can also try legacy message delivery to apparentorder@neveragain.de.
