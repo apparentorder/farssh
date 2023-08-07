@@ -23,7 +23,9 @@ Forward a local port to your VPC like this:
 farssh tunnel 5432 pg-cluster.cluster-foo.eu-central-1.rds.amazonaws.com
 ```
 
-Then connect to the local port 5432 on your machine, e.g. just using `psql -h localhost`.
+Then connect to the local port 5432 on your machine, e.g. just using `psql -h localhost` in another shell, or your favorite GUI client.
+
+Remember to terminate the FarSSH session using `^C` when done.
 
 ### Proxy mode
 
@@ -34,9 +36,11 @@ farssh proxy
 
 Then configure your browser to use a SOCKS proxy on `localhost`, port 1080.
 
+Remember to terminate the FarSSH session using `^C` when done.
+
 ### SSH mode
 
-If you need a shell inside your VPC, run
+If you just need a shell inside your VPC, run
 ```
 farssh ssh
 ```
@@ -55,7 +59,11 @@ farssh ssh
 ### Deploy configuration on AWS
 
 Use this [Cloudformation quick-create link](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://farssh.s3.amazonaws.com/cloudformation/farssh.yaml&stackName=farssh-default) to deploy necessary
-resources in the target environment. Make sure you have selected the correct region! For a list of created resources,
+resources in the target environment.
+
+For Subnets, be sure to select one or more *public* subnets, i.e. that are connected to an Internet Gateway.
+
+Make sure you have selected the correct region! For a list of created resources,
 see below.
 
 ### Allow connections from FarSSH
@@ -116,7 +124,7 @@ environment:
 The "client" is a relatively simple shell script that pulls a few parameters from SSM Parameter Store
 and then starts an ECS Task with the FarSSH image. The FarSSH task will be available after a few seconds.
 
-The client will then start an `ssh` session as appropriate for the desired connection mode.
+The client will then start an `ssh` session to the public IP address of the FarSSH task.
 
 Key pairs are generated locally for both the client connection and the FarSSH task's SSH host key, and
 the SSH client will "strictly" check the expected host key.
@@ -139,6 +147,7 @@ the SSH client will "strictly" check the expected host key.
 * Only half-way through building this I realized that I could have built the same thing for an
   ad-hoc VPN endpoint instead of an SSH server; I have yet to think through what kind of sense
   that could make
+* Properly tag the public ECR image(s) so it can be coupled with released versions
 
  
   
