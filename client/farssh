@@ -2,7 +2,7 @@
 set -e
 
 VERSION=v0.1-devel
-PROVIDER=FARGATE#_SPOT not supported for Arm64
+PROVIDER=FARGATE #_SPOT not supported for Arm64
 FARSSH_ID=default
 
 usage() {
