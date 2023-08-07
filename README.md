@@ -144,9 +144,10 @@ the SSH client will "strictly" check the expected host key.
   
 ## Motivation
 
-To my knowledge, all alternative options employ time-based billing, meaning that you pay a base fee for
-having them around, even if you're not using them at all. For example, while AWS ClientVPN does charge
-per connection hour, it also charges you just for being associated to your VPC.
+To my knowledge, all alternative options use [time-based billing](https://tty.neveragain.de/2021/06/29/timeless-services.html),
+meaning that you pay a base fee for having them around, even if you're not using them at all.
+For example, while AWS ClientVPN does charge per connection hour, it also charges you just for
+being associated to your VPC.
 
 AWS recently announced [EC2 Instance Connect Endpoints](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-using-eice.html)
 which absolutely solve this problem, even without additional charges. For a few days after release, this
