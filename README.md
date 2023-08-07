@@ -9,7 +9,9 @@ resources and, optionally, as a quick way to tunnel all your browser traffic, so
 appear to come from this AWS region's public IP addresses (like a VPN).
 
 FarSSH sessions will incur AWS charges only when you use it, at roughly $0.01 per hour, calculated per second
-(Fargate billing model).
+(AWS Fargate charges).
+
+Resources are deployed in *your* AWS account; there is no third party / no external service involved.
 
 
 
