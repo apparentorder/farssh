@@ -139,7 +139,9 @@ the SSH client will "strictly" check the expected host key.
 
 ## Future ideas
 
-* Re-write the client in an actual programming language, because right now it's slow and ugly
+* Re-write the client in an actual programming language, because right now it's shell and slow and ugly
+* Add support for starting to actual client programs, something like `farssh psql myDatabase1` to
+  look up the RDS endpoint for `myDatabase1`, establish a tunnel and then execute `psql`
 * Support for multiple VPCs per region
 * Support for IPv6(-only)
 * Optionally use some kind of "reverse SSH", so the FarSSH task does not need a public IP address
