@@ -56,6 +56,7 @@ farssh ssh
    * note that the connection target (FarSSH tunnel mode) can be in a private subnet, or, via VPC peering, even
      in a different VPC
  * `aws` cli and appropriate credentials configured on the client machine
+ * OpenSSH `ssh` client on the client machine
 
 ### Deploy configuration on AWS
 
