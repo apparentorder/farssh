@@ -56,9 +56,9 @@ farssh ssh
    * note that the connection target (FarSSH tunnel mode) can be in a private subnet, or, via VPC peering, even
      in a different VPC
  * For the client machine:
- * `aws` cli and appropriate credentials configured
- * OpenSSH `ssh` client
- * Bourne shell and stsandard Unix text utils, so Windows probably won't work (tested: macOS, Amazon Linux)
+   * `aws` cli and appropriate credentials configured
+   * OpenSSH `ssh` client
+   * Bourne shell and stsandard Unix text utils, so Windows probably won't work (tested: macOS, Amazon Linux)
 
 ### Deploy configuration on AWS
 
