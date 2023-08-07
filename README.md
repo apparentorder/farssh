@@ -6,7 +6,7 @@ You can easily connect to in-VPC resources like RDS and OpenSearch endpoints, us
 
 FarSSH features a SOCKS proxy mode, enabling your browser to be "in" the target VPC; this works both for accessing VPC
 resources and, optionally, as a quick way to tunnel all your browser traffic, so your browser's connections will
-appear to come from this VPC's IP addresses.
+appear to come from this AWS region's public IP addresses (like a VPN).
 
 FarSSH sessions will incur AWS charges only when you use it, at roughly $0.01 per hour, calculated per second
 (Fargate billing model).
