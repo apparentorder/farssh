@@ -1,9 +1,8 @@
 ## FarSSH
 
-FarSSH provides secure on-demand tunnels into AWS VPCs.
+FarSSH provides secure on-demand connections into AWS VPCs.
 
-This way you can easily connect to in-VPC resources like RDS and OpenSearch using tools installed on your local machine.
-You could also access AWS resources that can only be access via specific VPC interface endpoints.
+You can easily connect to in-VPC resources like RDS and OpenSearch endpoints, using tools installed on your local machine.
 
 FarSSH features a SOCKS proxy mode, enabling your browser to be "in" the target VPC; this works both for accessing VPC
 resources and, optionally, as a quick way to tunnel all your browser traffic, so your browser's connections will
@@ -101,7 +100,10 @@ Cloudformation template to.
 FarSSH is basically a wrapper around an OpenSSH server and your local OpenSSH client. The latter does the
 actual work of tunneling (local port forwarding, parameter `-L`) and proxying (SOCKS proxy, parameter `-D`).
 
-FarSSH consists of three rather simple components to glue it together:
+FarSSH consists of three rather simple components to glue it together. Here's a highly professional
+architecture diagram:
+
+![farssh architecture painting](https://pbs.twimg.com/media/Fz776zoWIAI6f89?format=png&name=900x900)
 
 ### Container image
 
