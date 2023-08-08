@@ -58,7 +58,7 @@ farssh ssh
  * For the client machine:
    * `aws` cli and appropriate credentials configured
    * OpenSSH `ssh` client
-   * Bourne shell and stsandard Unix text utils, so Windows probably won't work (tested: macOS, Amazon Linux)
+   * Bourne shell and standard Unix text utils, so Windows probably won't work (tested: macOS, Amazon Linux)
 
 ### Deploy configuration on AWS
 
