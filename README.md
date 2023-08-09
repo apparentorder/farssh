@@ -70,6 +70,14 @@ For Subnets, be sure to select one or more *public* subnets, i.e. that are conne
 Make sure you have selected the correct region! For a list of created resources,
 see below.
 
+**NOTE: If Cloudformation fails to create the stack with this error ...**
+```
+Unable to assume the service linked role. Please verify that the ECS service linked role exists.
+```
+... then please delete the stack from Cloudformation and simply retry from the quick-create link above.
+That role is automatically created by AWS on first-ever ECS usage, but the cluster creation fails anyway. If
+you know how to properly fix this in Cloudformation, please let me know.
+
 ### Allow connections from FarSSH
 
 Adjust your existing Security Groups to allow inbound connections from the FarSSH Security Group.
