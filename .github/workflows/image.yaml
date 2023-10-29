@@ -27,7 +27,13 @@ jobs:
           role-to-assume: arn:aws:iam::329261680777:role/farssh-github
           role-session-name: github-action-push
           aws-region: us-east-1
-          
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: apparentorder
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: ecr-public login
         run:
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
@@ -41,10 +47,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: build and push
+      - name: build and push to ECR
         env:
           ECR_REPOSITORY: public.ecr.aws/apparentorder/farssh
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker buildx build --push --platform linux/arm64 --tag $ECR_REPOSITORY:$IMAGE_TAG image
           docker buildx build --push --platform linux/arm64 --tag $ECR_REPOSITORY:latest image
+
+      - name: build and push to Dockerhub
+        env:
+          DOCKERHUB_REPOSITORY: apparentorder/farssh
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker buildx build --push --platform linux/arm64 --tag $DOCKERHUB_REPOSITORY:$IMAGE_TAG image
+          docker buildx build --push --platform linux/arm64 --tag $DOCKERHUB_REPOSITORY:latest image
