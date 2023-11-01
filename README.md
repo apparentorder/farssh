@@ -56,9 +56,10 @@ farssh ssh
    * note that the connection target (FarSSH tunnel mode) can be in a private subnet, or, via VPC peering, even
      in a different VPC
  * For the client machine:
-   * `aws` cli and appropriate credentials configured
+   * local AWS configuration (appropriate credentials / profiles configured etc.)
+   * Python 3
+   * [AWS SDK for Python](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html), aka `boto3`
    * OpenSSH `ssh` client
-   * Bourne shell and standard Unix text utils, so Windows probably won't work (tested: macOS, Amazon Linux)
 
 ### Deploy configuration on AWS
 
@@ -70,6 +71,8 @@ For Subnets, be sure to select one or more *public* subnets, i.e. that are conne
 Make sure you have selected the correct region! For a list of created resources,
 see below.
 
+**NOTE: If you intend to use IPv6, please read below, before continuing **
+
 **NOTE: If Cloudformation fails to create the stack with this error ...**
 ```
 Unable to assume the service linked role. Please verify that the ECS service linked role exists.
@@ -77,6 +80,7 @@ Unable to assume the service linked role. Please verify that the ECS service lin
 ... then please delete the stack from Cloudformation and simply retry from the quick-create link above.
 That role is automatically created by AWS on first-ever ECS usage, but the cluster creation fails anyway. If
 you know how to properly fix this in Cloudformation, please let me know.
+
 
 ### Allow connections from FarSSH
 
@@ -89,7 +93,7 @@ For example, to allow tunnel connections to your RDS instance, modify a correspo
 
 ### Download the FarSSH client
 
-Download the [client](https://raw.githubusercontent.com/apparentorder/farssh/main/client/farssh) (shell script),
+Download the [client](https://raw.githubusercontent.com/apparentorder/farssh/main/client/farssh) (Python),
 place it appropriately, e.g. in your `~/bin/` directory, and make it executable.
 
 For example:
@@ -100,14 +104,55 @@ https://raw.githubusercontent.com/apparentorder/farssh/main/client/farssh
 chmod 755 ~/bin/farssh
 ```
 
-The client requires and uses the `aws` cli in your environment; the AWS target account, region and
-credentials therefore depend on your environment (awscli config and/or environment variables).
+FarSSH will use the target AWS account, region and credentials from the local AWS configuration, e.g. your configuration in `~/.aws`,
+your `AWS_PROFILE` and `AWS_REGION` environment variables etc.
 
 **Note:** Make sure that your local environment uses the same AWS account and region that you deployed the
 Cloudformation template to.
 
 That's it. For usage, see above.
 
+
+### Updating
+
+To update the FarSSH client, simply re-download the client (see above).
+
+To update the FarSSH Cloudformation template, select the FarSSH stack in the Cloudformation console, hit
+"Update" and replace the template using this S3 url: `https://farssh.s3.amazonaws.com/cloudformation/farssh.yaml`
+
+To update FarSSH settings, update the stack with the "Use current template" option.
+
+
+## IPv6 Support
+
+Given that AWS will soon charge for any use of public IPv4 addresses, it's important to use IPv6 when possible.
+
+FarSSH supports IPv6 both on the AWS side and on the client.
+
+### Client Side
+
+Run the client with the option `-6` (or `--ipv6`) to make it connect to the FarSSH ECS task via IPv6. The
+client will fail when the FarSSH ECS task does not have an IPv6 address.
+
+### Server Side (ECS)
+
+IPv6 for the FarSSH ECS task is a bit more complicated, as we need to work around several IPv6 potholes in AWS.
+
+To allow IPv6 connections, you only need to make sure that the configured public subnets have IPv6 configured.
+Fargate tasks will automatically get an IPv6 address. If that doesn't work out of the box, double-check the ECS [`dualStackIPv6` setting](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-account-settings.html).
+
+By default, FarSSH will *not* configure the ECS task with a public IPv4 address when connecting via IPv6.
+
+An ECS task needs some IP connectivity to pull the image and for sending logs to Cloudwatch. If you have neither VPC endpoints
+nor NAT in your VPC, this will cause the ECS task to fail.
+
+In that case, you can set `ForcePublicIpv4` to `true`; in that case, FarSSH will always request a public IPv4
+address, even when a clients connects via IPv6. With the public IPv4 address, everything works.
+
+Alternatively, to fully avoid using public IPv4 addresses, change these options during the Cloudformation setup:
+
+- set `ImageUri` to the `docker.io` address (the AWS ECR does not support IPv6)
+- disable the `awslogs` driver (Cloudwatch Logs does not support IPv6)
 
 
 ## How it works
@@ -138,7 +183,7 @@ environment:
 
 ### Client
 
-The "client" is a relatively simple shell script that pulls a few parameters from SSM Parameter Store
+The "client" pulls a few parameters from SSM Parameter Store
 and then starts an ECS Task with the FarSSH image. The FarSSH task will be available after a few seconds.
 
 The client will then start an `ssh` session to the public IP address of the FarSSH task.
@@ -150,17 +195,13 @@ the SSH client will "strictly" check the expected host key.
 
 * Currently, FarSSH can be deployed to only one VPC per region per account (deploying multiple times to
   different regions works fine)
-* This is a brand-new project, so please do use and test it, but keep this in mind before using
-  it in production environments
 
 
 ## Future ideas
 
-* Re-write the client in an actual programming language, because right now it's shell and slow and ugly
 * Add support for starting to actual client programs, something like `farssh psql myDatabase1` to
   look up the RDS endpoint for `myDatabase1`, establish a tunnel and then execute `psql`
 * Support for multiple VPCs per region
-* Support for IPv6(-only)
 * Optionally use some kind of "reverse SSH", so the FarSSH task does not need a public IP address
 * Enable using existing ECS clusters (possibly including EC2-based)
 * Only half-way through building this I realized that I could have built the same thing for an

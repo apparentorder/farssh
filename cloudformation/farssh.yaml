@@ -17,7 +17,42 @@ Parameters:
 
   SshPort:
     Type: Number
-    Default: 20023
+    Default: 20022
+
+  EnableAwslogsDriver:
+    Description: |
+      Enable `awslogs` driver for the Fargate Task. Disable this when
+      connectivity to the Cloudwatch API is not possible, e.g. when running
+      on a VPC without public IPv4 addresses / VPC endpoints.
+    Type: String
+    Default: true
+    AllowedValues:
+    - true
+    - false
+
+  ForcePublicIpv4:
+    Description: |
+      Force the FarSSH client to always request a public IPv4 address. This may
+      be necessary when the client requests IPv6, but the FarSSH task needs
+      IPv4 for pulling the docker image or for Cloudwatch Logs.
+    Type: String
+    Default: false
+    AllowedValues:
+    - true
+    - false
+
+  ImageUri:
+    Description: |
+      When FarSSH runs in an IPv6 subnet, change this to the DockerHub image, as
+      AWS ECR Public does not support image pull over IPv6.
+    Type: String
+    Default: public.ecr.aws/apparentorder/farssh
+    AllowedValues:
+    - public.ecr.aws/apparentorder/farssh
+    - docker.io/apparentorder/farssh
+
+Conditions:
+  AwslogsEnabled: !Equals [!Ref EnableAwslogsDriver, true]
 
 Resources:
   FarSshExecutionRole:
@@ -50,7 +85,7 @@ Resources:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
         ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # for debugging (ecs execute command)
+          - arn:aws:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy # for debugging (ecs execute command)
 
   SsmParameterPublicSubnets:
     Type: AWS::SSM::Parameter
@@ -73,6 +108,13 @@ Resources:
       Name: !Sub /farssh/${FarSshSuffix}/ssh_port
       Value: !Ref SshPort
 
+  SsmParameterForcePublicIpv4:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Name: !Sub /farssh/${FarSshSuffix}/force_public_ipv4
+      Value: !Ref ForcePublicIpv4
+
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -83,11 +125,20 @@ Resources:
         - IpProtocol: tcp
           FromPort: !Ref SshPort
           ToPort: !Ref SshPort
+          CidrIpv6: ::/0
+        - IpProtocol: tcp
+          FromPort: !Ref SshPort
+          ToPort: !Ref SshPort
           CidrIp: 0.0.0.0/0
-      # SecurityGroupEgress defaults to "allow all"
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIpv6: ::/0
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
 
   CloudWatchLogsGroup:
     Type: AWS::Logs::LogGroup
+    Condition: AwslogsEnabled
     Properties:
       LogGroupName: !Sub /ecs/farssh/${FarSshSuffix}
       RetentionInDays: 30
@@ -120,15 +171,18 @@ Resources:
       ContainerDefinitions:
         - Name: farssh
           Essential: true
-          Image: public.ecr.aws/apparentorder/farssh
+          Image: !Ref ImageUri
           PortMappings:
             - ContainerPort: !Ref SshPort
           LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref CloudWatchLogsGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
+            !If
+            - AwslogsEnabled
+            - LogDriver: awslogs
+              Options:
+                awslogs-group: !Ref CloudWatchLogsGroup
+                awslogs-region: !Ref AWS::Region
+                awslogs-stream-prefix: ecs
+            - !Ref AWS::NoValue
           Environment:
             - Name: FARSSH_SSH_PORT
               Value: !Ref SshPort

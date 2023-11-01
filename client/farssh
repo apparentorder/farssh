@@ -1,202 +1,246 @@
-#!/bin/sh
-set -e
+#!/usr/bin/env python3
 
-VERSION=v0.1-devel
-PROVIDER=FARGATE #_SPOT not supported for Arm64
-FARSSH_ID=default
+import boto3
+import re
+import subprocess
+import sys
+import argparse
+import tempfile
+import base64
+import time
 
-usage() {
-	echo "Usage: $0 {ssh | proxy | [tunnel] <local-port> <remote-host> [<remote-port>] | <ssh options>}" >&2
-	exit 64
-}
+FARSSH_VERSION = 'v0.2-devel'
 
-# ----------------------------------------------------------------------
-# Setup
-
-case "$1" in
-	"") usage;;
-	-*) MODE=raw;;
-	ssh) MODE=ssh;;
-	proxy) MODE=proxy;;
-	tunnel)
-		MODE=tunnel
-		TUNNEL_LOCAL_PORT="$2"
-		TUNNEL_REMOTE_HOST="$3"
-		TUNNEL_REMOTE_PORT="${4-$2}"
-		;;
-	*)
-		if test -n "$2" && echo "$1" | grep -qE '^[1-9][0-9]*$'; then
-			MODE=tunnel
-			TUNNEL_LOCAL_PORT="$1"
-			TUNNEL_REMOTE_HOST="$2"
-			TUNNEL_REMOTE_PORT="${3-$1}"
-		else
-			usage
-		fi
-		;;
-esac
-
-echo "FarSSH $VERSION"
-
-tempdir=$(mktemp -d /tmp/farssh.XXXXXX) || exit 69
-trap "rm -r $tempdir" SIGINT SIGTERM EXIT
+FARSSH_ID = 'default'
+FARSSH_URL = 'https://github.com/apparentorder/farssh'
 
 # ----------------------------------------------------------------------
-# Get SSM Parameters
 
-params=$(aws ssm get-parameters-by-path --path "/farssh/$FARSSH_ID" --recursive --query 'Parameters[].[Name, Value]' --output text)
-public_subnets=$(echo "$params" | awk '$1 ~ /public_subnets/ { $1=""; print; }' | sed 's/^[[:space:]]*//' )
-security_group=$(echo "$params" | awk '$1 ~ /security_group/ { $1=""; print; }' | sed 's/^[[:space:]]*//' )
-ssh_port=$(echo "$params" | awk '$1 ~ /ssh_port/ { $1=""; print; }' | sed 's/^[[:space:]]*//' )
+class FarSshArgs:
+	def __init__(self):
+		self.cmd_args = self._parse_args()
+		self.cmd_args['remote_port'] = self.cmd_args.get('remote_port') or self.cmd_args.get('local_port')
 
-public_subnets_json='["'$(echo "$public_subnets" | sed 's/,/","/g')'"]'
+		self.enable_execute_command = False
+
+		# defaults, if not found in Parameter Store
+		self.force_public_ipv4 = False
+
+		ssm = boto3.client('ssm')
+		for param in ssm.get_parameters_by_path(Path = f"/farssh/{FARSSH_ID}", Recursive = True)['Parameters']:
+			param_name = param['Name'].split('/')[-1]
+			setattr(self, param_name, param['Value'])
+
+		try:
+			self.public_subnets = self.public_subnets.split(',')
+			self.force_public_ipv4 = (self.force_public_ipv4 == "true")
+		except AttributeError:
+			x  = f"ERROR:  FarSSH parameters not found for this AWS account and region. "
+			x += f"Please follow setup instructions at {FARSSH_URL} first."
+			raise SystemExit(x)
+
+		# assign_public_ipv4 is not set from Parameter Store, but set here dynamically. It has to be sent from
+		# the client (network configuration in ecs:RunTask), but the AWS side can set force_public_ipv4 to
+		# signal the client that the server side needs public IPv4, e.g. for pulling the FarSSH image without NAT.
+		# Otherwise, and if we're going to use IPv6 anyway, we don't need public IPv4.
+		self.assign_public_ipv4 = "ENABLED" if self.force_public_ipv4 or not self.cmd_args.get('ipv6') else "DISABLED"
+
+	def _parse_args(self):
+		# TODO: the old syntax from v0.1, where it's possible to omit the "tunnel" command word,
+		# seems to be impossible with python's argparse. figure out a way to support this again.
+
+		if len(sys.argv) == 1:
+			sys.argv += [ "--help" ]
+
+		parser = argparse.ArgumentParser(
+			description = "Secure on-demand connections into AWS VPCs",
+		)
+
+		parser.add_argument('-6', '--ipv6', action='store_true', help = 'use IPv6 (disables public IPv4 when possible)')
+		parser.add_argument('-V', '--version', action='version', version = f'FarSSH {FARSSH_VERSION}')
+
+		subparsers = parser.add_subparsers(dest = 'command', required = True)
+
+		parser_ssh = subparsers.add_parser('ssh', help = 'start interactive SSH session')
+		parser_ssh.add_argument('arguments', nargs = '*', help = 'additional arguments passed to ssh')
+
+		parser_proxy = subparsers.add_parser('proxy', help = 'start SOCKS proxy')
+
+		parser_tunnel = subparsers.add_parser('tunnel', help = 'establish a port-forwarding tunnel')
+		parser_tunnel.add_argument('local_port', help='local port number')
+		parser_tunnel.add_argument('remote_host', help='remote host address')
+		parser_tunnel.add_argument('remote_port', help='remote port (optional)', nargs = '?', default = argparse.SUPPRESS)
+
+		return vars(parser.parse_args())
 
 # ----------------------------------------------------------------------
-# Generate SSH keys:
-# - the client's key for authentication
-# - the host's key so we can verify it
 
-ssh-keygen -q -N "" -t rsa -f "$tempdir/ssh_host_rsa_key"
-ssh-keygen -q -N "" -t rsa -f "$tempdir/ssh_login_key"
+class SshKeys:
+	def __init__(self, farssh_args):
+		self._tempdir = tempfile.TemporaryDirectory()
 
-overrides='{
-	"containerOverrides": [
+		self.farssh_args = farssh_args
+		self.known_hosts_file = f"{self._tempdir.name}/known-hosts"
+
+		subprocess.run(["ssh-keygen", "-q", "-N", "", "-t", "rsa", "-f", f"{self._tempdir.name}/ssh_host_rsa_key"], check = True)
+		subprocess.run(["ssh-keygen", "-q", "-N", "", "-t", "rsa", "-f", f"{self._tempdir.name}/ssh_login_key"], check = True)
+
+		self.host_key_file =      f"{self._tempdir.name}/ssh_host_rsa_key"
+		self.host_key_pub_file =  f"{self._tempdir.name}/ssh_host_rsa_key.pub"
+		self.login_key_file =     f"{self._tempdir.name}/ssh_login_key"
+		self.login_key_pub_file = f"{self._tempdir.name}/ssh_login_key.pub"
+
+		self.host_key = open(self.host_key_file, "r").read()
+		self.host_key_pub = open(self.host_key_pub_file, "r").read()
+		# self.login_key = open(self.login_key_file, "r").read() # not used
+		self.login_key_pub = open(self.login_key_pub_file, "r").read()
+
+	def write_known_hosts(self, ip_address):
+		# Create temporary known-hosts file so the SSH client can verify the remote host's public key that we configured it with.
+		# The `host` *must* be without port number when the port is 22; this seems to be a quirk of OpenSSH's known-hosts file format.
+
+		with open(self.known_hosts_file, "w") as f:
+			host = ip_address
+
+			if self.farssh_args.ssh_port != "22":
+				host = f"[{host}]:{self.farssh_args.ssh_port}"
+
+			f.write(f"{host} {self.host_key_pub}\n")
+
+def select_ip_address(args, task):
+	ipv4_address = None
+	ipv6_address = task['containers'][0]['networkInterfaces'][0].get('ipv6Address')
+
+	if args.cmd_args.get('ipv6'):
+		if not ipv6_address:
+			raise SystemExit("ERROR:  IPv6 requested, but no IPv6 address on the FarSSH ECS task. Check selected VPC subnets.")
+
+		return ipv6_address
+
+	# The IPv6 is available in `task`, but the public IPv4 address is not, so we need to query this separately.
+	ec2 = boto3.client('ec2')
+	eni_id = [detail['value'] for detail in task['attachments'][0]['details'] if detail['name'] == "networkInterfaceId"][0]
+	dni = ec2.describe_network_interfaces(NetworkInterfaceIds = [ eni_id ])
+	ipv4_address = dni['NetworkInterfaces'][0].get('Association', {}).get('PublicIp')
+
+	if ipv4_address:
+		return ipv4_address
+
+	if ipv6_address:
+		print("WARNING:  FarSSH ECS task has no public IPv4 address; attempting with IPv6.")
+		return ipv6_address
+
+	raise SystemExit("ERROR:  FarSSH ECS task has neither IPv6 nor public IPv4 address. Check selected VPC subnets.")
+
+def run_ecs_task(args, ssh_keys):
+	override_env = [
 		{
-			"name": "farssh",
-			"environment": [
-				{
-					"name": "FARSSH_SSH_AUTHORIZED_KEYS",
-					"value": "'$(cat "$tempdir/ssh_login_key.pub")'"
-				},
-				{
-					"name": "FARSSH_SSH_HOST_RSA_KEY_BASE64",
-					"value": "'$(base64 <"$tempdir/ssh_host_rsa_key" | tr -d '\n')'"
-				}
-			]
+			"name": "FARSSH_SSH_AUTHORIZED_KEYS",
+			"value": ssh_keys.login_key_pub,
+		},
+		{
+			"name": "FARSSH_SSH_HOST_RSA_KEY_BASE64",
+			"value": base64.b64encode(bytes(ssh_keys.host_key, "utf-8")).decode("utf-8")
 		}
 	]
-}'
 
-network_configuration='{
-	"awsvpcConfiguration": {
-		"subnets": '"$public_subnets_json"',
-		"securityGroups": [ "'"$security_group"'" ],
-		"assignPublicIp": "ENABLED"
+	override_entry = {
+		"name": "farssh", # container name from task definition
+		"environment": override_env,
 	}
-}'
 
-# ----------------------------------------------------------------------
-# Start the FarSSH ECS task
+	overrides = {}
+	overrides['containerOverrides'] = [ override_entry ]
 
-ecs_exec="" # use --enable-execute-command for container debugging
+	network_configuration = {
+		"awsvpcConfiguration": {
+			"subnets": args.public_subnets,
+			"securityGroups": [ args.security_group ],
+			"assignPublicIp": args.assign_public_ipv4,
+		}
+	}
 
-taskArn=$(
-	aws ecs run-task \
-	--cluster farssh \
-	--capacity-provider-strategy capacityProvider=$PROVIDER \
-	--task-definition "farssh-$FARSSH_ID" \
-	$ecs_exec \
-	--overrides "$overrides" \
-	--network-configuration "$network_configuration" \
-	--query 'tasks[].taskArn' \
-	--output text
-)
-
-if test -z "$taskArn" -a "$PROVIDER" = "FARGATE_SPOT"; then
-	echo "Launch failed, retrying without Spot option"
-
-	taskArn=$(
-		aws ecs run-task \
-		--cluster farssh \
-		--capacity-provider-strategy capacityProvider=FARGATE \
-		--task-definition "farssh-$FARSSH_ID" \
-		$ecs_exec \
-		--overrides "$overrides" \
-		--network-configuration "$network_configuration" \
-		--query 'tasks[].taskArn' \
-		--output text
-	)
-fi
-
-taskId=$(echo "$taskArn" | cut -d/ -f3)
-
-echo "Launched FarSSH task: $taskId"
-echo "Waiting for FarSSH task to become ready ..."
-
-while true; do
-	status=$(
-		aws ecs describe-tasks \
-			--cluster farssh \
-			--task "$taskArn" \
-			--query "tasks[].lastStatus" \
-			--output text
+	ecs = boto3.client('ecs')
+	tasks = ecs.run_task(
+		cluster = "farssh",
+		capacityProviderStrategy = [ { "capacityProvider": "FARGATE", "weight": 1, "base": 1 } ],
+		taskDefinition = f"farssh-{FARSSH_ID}",
+		enableExecuteCommand = args.enable_execute_command,
+		overrides = overrides,
+		networkConfiguration = network_configuration,
 	)
 
-	if test "$status" == "RUNNING"; then
-		break
-	fi
+	task = tasks['tasks'][0]
+	task_arn = task['taskArn']
+	task_id = task_arn.split('/')[-1]
 
-	if test "$status" == "STOPPED"; then
-		echo "ERROR:  ECS task is in status STOPPED; see ECS Console for details" >&2
-		exit 69
-	fi
+	print(f"Launched FarSSH ECS task: {task_id}")
+	print(f"Status: {task['lastStatus']}")
 
-	sleep 1
-done
+	while True:
+		time.sleep(1)
 
-eni_id=$(
-	aws ecs describe-tasks \
-		--cluster farssh \
-		--task "$taskArn" \
-		--query "tasks[].attachments[?status == 'ATTACHED'][].details[?name == 'networkInterfaceId'][].value" \
-		--output text
-)
+		task_old = task
+		task = ecs.describe_tasks(cluster = "farssh", tasks = [ task_arn ])['tasks'][0]
 
-public_ip=$(
-	aws ec2 describe-network-interfaces \
-		--network-interface-ids "$eni_id" \
-		--query 'NetworkInterfaces[].Association.PublicIp' \
-		--output text
-)
+		if task['lastStatus'] == "STOPPED":
+			raise SystemExit("ERROR:  ECS task is in status STOPPED; see ECS Console for details.")
 
-echo "Public IP: $public_ip ($eni_id)"
+		if task['lastStatus'] != task_old['lastStatus']:
+			print(f"Status: {task['lastStatus']}")
 
-# ----------------------------------------------------------------------
-# Create known-hosts
+		if task['lastStatus'] == "RUNNING":
+			break
 
-# Create temporary known-hosts file so the SSH client can verify the remote host's public
-# key that we configured it with.
-#
-# n.b.: host *must* be without port number when the port is 22; this seems to be a quirk of
-# OpenSSH's known-hosts file format.
-#
+	ip_address = select_ip_address(args, task)
 
-host="$public_ip"
-if test "$ssh_port" != "22"; then
-	host="[$public_ip]:$ssh_port"
-fi
-echo "$host $(cat $tempdir/ssh_host_rsa_key.pub)" > "$tempdir/known-hosts"
+	print(f"FarSSH task IP address: {ip_address}")
+	print()
+
+	return ip_address
 
 # ----------------------------------------------------------------------
-# Assemble SSH command line and run it
 
-echo "Starting ssh client ..."
-echo
+args = FarSshArgs()
+ssh_keys = SshKeys(args)
 
-o_id="IdentityFile $tempdir/ssh_login_key"
-o_idonly="IdentitiesOnly yes"
-o_ukhfile="UserKnownHostsFile $tempdir/known-hosts"
-o_shkc="StrictHostKeyChecking yes"
-o_tunnel="localhost:${TUNNEL_LOCAL_PORT}:${TUNNEL_REMOTE_HOST}:${TUNNEL_REMOTE_PORT}"
+ip_address = run_ecs_task(args, ssh_keys)
 
-cmd_proxy="echo Ready: SOCKS proxy on local port 1080.; echo Press ^C to terminate.; sleep infinity"
-cmd_tunnel="echo Ready: Forwarding from local port ${TUNNEL_LOCAL_PORT}.; echo Press ^C to terminate.; sleep infinity"
+ssh_keys.write_known_hosts(ip_address)
 
-case "$MODE" in
-	raw)    ssh -N -p "$ssh_port" -o "$o_id" -o "$o_idonly" -o "$o_ukhfile" -o "$o_shkc" "$@"           "root@$public_ip" ;;
-	ssh)    ssh    -p "$ssh_port" -o "$o_id" -o "$o_idonly" -o "$o_ukhfile" -o "$o_shkc"                "root@$public_ip" ;;
-	proxy)  ssh    -p "$ssh_port" -o "$o_id" -o "$o_idonly" -o "$o_ukhfile" -o "$o_shkc" -D 1080        "root@$public_ip" "$cmd_proxy" ;;
-	tunnel) ssh    -p "$ssh_port" -o "$o_id" -o "$o_idonly" -o "$o_ukhfile" -o "$o_shkc" -L "$o_tunnel" "root@$public_ip" "$cmd_tunnel" ;;
-	*)      echo "internal error: unknown MODE=$MODE?!" >&2;;
-esac
+ssh_command  = ["ssh"]
+ssh_command += [ "-p", args.ssh_port ]
+ssh_command += [ "-o", f"IdentityFile {ssh_keys.login_key_file}" ]
+ssh_command += [ "-o", f"IdentitiesOnly yes" ]
+ssh_command += [ "-o", f"UserKnownHostsFile {ssh_keys.known_hosts_file}" ]
+ssh_command += [ "-o", f"StrictHostKeyChecking yes" ]
+ssh_command += [ "-l", f"root" ]
+
+if args.cmd_args.get('command') == "ssh":
+	ssh_command += [ ip_address ]
+	ssh_command += args.cmd_args.get('arguments')
+
+	print("------------------------------------------------------------------------")
+	print()
+
+elif args.cmd_args.get('command') == "proxy":
+	ssh_command += [ "-D", "1080" ]
+	ssh_command += [ ip_address ]
+	ssh_command += [ "echo SOCKS proxy available on port 1080. Hit Ctrl-C to terminate.; sleep infinity" ]
+
+elif args.cmd_args.get('command') == "tunnel":
+	l_args = [
+		args.cmd_args.get('local_port'),
+		args.cmd_args.get('remote_host'),
+		args.cmd_args.get('remote_port'),
+	]
+
+	ssh_command += [ "-L", ":".join(l_args) ]
+	ssh_command += [ ip_address ]
+	ssh_command += [ "echo Port forwarding tunnel established. Hit Ctrl-C to terminate.; sleep infinity" ]
+
+try:
+	subprocess.run(ssh_command, check = False)
+except KeyboardInterrupt:
+	pass
 
