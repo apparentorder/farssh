@@ -138,16 +138,16 @@ client will fail when the FarSSH ECS task does not have an IPv6 address.
 
 IPv6 for the FarSSH ECS task is a bit more complicated, as we need to work around several IPv6 potholes in AWS.
 
-To allow IPv6 connections, you only need to make sure that the configured public subnets have IPv6 configured.
+To allow IPv6 connections from the client, you only need to make sure that the configured public subnets have IPv6 configured.
 Fargate tasks will automatically get an IPv6 address. If that doesn't work out of the box, double-check the ECS [`dualStackIPv6` setting](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-account-settings.html).
 
-By default, FarSSH will *not* configure the ECS task with a public IPv4 address when connecting via IPv6.
+But an ECS task also needs some IP connectivity to pull the image and to send logs to Cloudwatch. If you have neither VPC endpoints
+nor NAT in your VPC, this will cause the ECS task to fail when a FarSSH client uses IPv6.
 
-An ECS task needs some IP connectivity to pull the image and for sending logs to Cloudwatch. If you have neither VPC endpoints
-nor NAT in your VPC, this will cause the ECS task to fail.
+The Cloudformation template has some knobs for this:
 
-In that case, you can set `ForcePublicIpv4` to `true`; in that case, FarSSH will always request a public IPv4
-address, even when a clients connects via IPv6. With the public IPv4 address, everything works.
+The easy fix is to set `ForcePublicIpv4` to `true` in the Cloudformation stack; FarSSH will then always
+request a public IPv4 address, even when a clients connects via IPv6. With the public IPv4 address, everything works.
 
 Alternatively, to fully avoid using public IPv4 addresses, change these options during the Cloudformation setup:
 
