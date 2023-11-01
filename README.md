@@ -71,7 +71,7 @@ For Subnets, be sure to select one or more *public* subnets, i.e. that are conne
 Make sure you have selected the correct region! For a list of created resources,
 see below.
 
-**NOTE: If you intend to use IPv6, please read below, before continuing **
+**NOTE: If you intend to use IPv6, please read below, before continuing**
 
 **NOTE: If Cloudformation fails to create the stack with this error ...**
 ```
