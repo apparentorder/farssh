@@ -171,6 +171,10 @@ FarSSH publishes a container image in AWS Public ECR at `public.ecr.aws/apparent
 a tiny Alpine-based image that only runs an SSH server. There is also a background process that will
 terminate the task if there are no active connections.
 
+The same image is also published to Dockerhub at `docker.io/apparentorder/farssh`, because Dockerhub
+supports IPv6 and AWS Public ECR does not. Using Dockerhub over IPv4 might result in pull errors due
+to rate limit though.
+
 ### Resources in the target environment
 
 The Cloudformation template creates the following resources so FarSSH tasks can be run in the target
