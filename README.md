@@ -16,7 +16,7 @@ at roughly $0.01 per hour (billed per second) per active client; no charges when
 
 ## Usage
 
-### SQL client mode
+### SQL Client Mode
 
 To launch a `psql` or `mysql` client directly to one of your RDS databases (instance or cluster), simply:
 ```
@@ -28,11 +28,11 @@ For MySQL / MariaDB:
 farssh mysql -p [-u username] [database_name]
 ```
 
-If only one matching database is available, it will automatically be selected. If there are multiple databases,
-use `--identifier` to select one; otherwise, a list of available databases will be shown.
-
 When not specified, username and database_name will be taken from the RDS configuration (master username and the
 initial database).
+
+If only one matching RDS database is available, it will automatically be selected. If there are multiple databases,
+use `--identifier` to select one; otherwise, a list of available databases will be shown.
 
 ### Tunnel mode
 
