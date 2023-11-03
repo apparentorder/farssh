@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
+import argparse
+import base64
 import boto3
-import re
+import os
+import shutil
 import subprocess
 import sys
-import argparse
 import tempfile
-import base64
 import time
 
-FARSSH_VERSION = 'v0.2-devel'
+FARSSH_VERSION = 'v0.3-devel'
 
 FARSSH_ID = 'default'
 FARSSH_URL = 'https://github.com/apparentorder/farssh'
@@ -62,7 +63,7 @@ class FarSshArgs:
 		subparsers = parser.add_subparsers(dest = 'command', required = True)
 
 		parser_ssh = subparsers.add_parser('ssh', help = 'start interactive SSH session')
-		parser_ssh.add_argument('arguments', nargs = '*', help = 'additional arguments passed to ssh')
+		parser_ssh.add_argument('extra_arguments', nargs = '*', help = 'extra arguments passed to ssh')
 
 		parser_proxy = subparsers.add_parser('proxy', help = 'start SOCKS proxy')
 
@@ -70,6 +71,21 @@ class FarSshArgs:
 		parser_tunnel.add_argument('local_port', help='local port number')
 		parser_tunnel.add_argument('remote_host', help='remote host address')
 		parser_tunnel.add_argument('remote_port', help='remote port (optional)', nargs = '?', default = argparse.SUPPRESS)
+
+		parser_psql = subparsers.add_parser('psql', help = 'establish tunnel to a postgres endpoint and launch the psql client')
+		parser_psql.add_argument('-i', '--identifier', help='database identifier (RDS)')
+		parser_psql.add_argument('-u', '--user', dest='username', help='database username')
+		parser_psql.add_argument('-U', '--username', help=argparse.SUPPRESS)
+		parser_psql.add_argument('database', nargs = '?', help='database name (in the DB engine)')
+		parser_psql.add_argument('extra_arguments', nargs = '*', help = 'extra arguments passed to psql')
+
+		parser_mysql = subparsers.add_parser('mysql', help = 'establish tunnel to a mysql/mariadb endpoint and launch the mysql client')
+		parser_mysql.add_argument('-i', '--identifier', help='database identifier (RDS)')
+		parser_mysql.add_argument('-p', '--password', dest='password', action='store_true', help='mysql password')
+		parser_mysql.add_argument('-u', '--user', dest='username', help=argparse.SUPPRESS)
+		parser_mysql.add_argument('-U', '--username', help='database username')
+		parser_mysql.add_argument('database', nargs = '?', help='database name (in the DB engine)')
+		parser_mysql.add_argument('extra_arguments', nargs = '*', help = 'extra arguments passed to mysql')
 
 		return vars(parser.parse_args())
 
@@ -163,7 +179,10 @@ def run_ecs_task(args, ssh_keys):
 	ecs = boto3.client('ecs')
 	tasks = ecs.run_task(
 		cluster = "farssh",
-		capacityProviderStrategy = [ { "capacityProvider": "FARGATE", "weight": 1, "base": 1 } ],
+		capacityProviderStrategy = [
+			{ "capacityProvider": "FARGATE", "weight": 1, "base": 1 },
+			# { "capacityProvider": "FARGATE_SPOT", "weight": 0, "base": 0 }, # not supported for Arm images
+		],
 		taskDefinition = f"farssh-{FARSSH_ID}",
 		enableExecuteCommand = args.enable_execute_command,
 		overrides = overrides,
@@ -199,48 +218,167 @@ def run_ecs_task(args, ssh_keys):
 
 	return ip_address
 
+def select_database(args):
+	if args.cmd_args.get('command') not in ["psql", "mysql"]:
+		return
+
+	rds = boto3.client('rds')
+
+	available  = []
+	available += rds.describe_db_instances()['DBInstances']
+	available += rds.describe_db_clusters()['DBClusters']
+
+	candidates = []
+	for db in available:
+		if db.get('DBInstanceStatus') == "creating":
+			continue
+
+		if db.get('Status') == "creating":
+			continue
+
+		db['database'] = db.get('DatabaseName') or db.get('DBName')
+		db['identifier'] = db.get('DBClusterIdentifier') or db.get('DBInstanceIdentifier')
+		db['hostname'] = db['Endpoint'] if isinstance(db['Endpoint'], str) else db['Endpoint'].get('Address')
+		db['username'] = db.get('MasterUsername')
+		db['port'] = db.get('Port') or db['Endpoint'].get('Port')
+
+		if args.cmd_args.get('command') == "psql" and "postgres" not in db['Engine']:
+			continue
+
+		if args.cmd_args.get('command') == "mysql" and "mysql" not in db['Engine'] and "maria" not in db['Engine']:
+			continue
+
+		if args.cmd_args.get('identifier') and db['identifier'].lower() != args.cmd_args.get('identifier').lower():
+			continue
+
+		candidates += [db]
+
+	if len(candidates) == 0:
+		raise SystemExit("ERROR:  No matching database found")
+
+	if len(candidates) == 1:
+		db = candidates[0]
+		if not args.cmd_args.get('identifier'):
+			print(f"Selected database: {db['identifier']} ({db['hostname']})")
+		return db
+
+	print("Multiple databases available; use --identifier/-i to select one:")
+	for db in candidates:
+		print(f"- {db['identifier']}")
+
+	exit(0)
+
+def build_commands(args, ip_address, database):
+	ssh_command  = [ shutil.which("ssh") ]
+	ssh_command += [ "-p", args.ssh_port ]
+	ssh_command += [ "-o", f"IdentityFile {ssh_keys.login_key_file}" ]
+	ssh_command += [ "-o", f"IdentitiesOnly yes" ]
+	ssh_command += [ "-o", f"UserKnownHostsFile {ssh_keys.known_hosts_file}" ]
+	ssh_command += [ "-o", f"StrictHostKeyChecking yes" ]
+	ssh_command += [ "-o", f"ExitOnForwardFailure yes" ]
+	ssh_command += [ "-l", f"root" ]
+
+	main_command = None
+
+	if args.cmd_args.get('command') == "ssh":
+		ssh_command += [ ip_address ]
+		ssh_command += args.cmd_args.get('extra_arguments')
+
+		print("------------------------------------------------------------------------")
+		print()
+
+	elif args.cmd_args.get('command') == "proxy":
+		ssh_command += [ "-D", "1080" ]
+		ssh_command += [ ip_address ]
+		ssh_command += [ "echo SOCKS proxy available on port 1080. Hit Ctrl-C to terminate.; sleep infinity" ]
+
+	elif args.cmd_args.get('command') in [ "psql", "mysql" ]:
+		port = str(database['port'])
+
+		l_args = [ port, database['hostname'], port ]
+		ssh_command += [ "-L", ":".join(l_args) ]
+		ssh_command += [ ip_address ]
+
+		if args.cmd_args.get('command') == "psql":
+			username = args.cmd_args.get('username') or os.environ.get('PGUSER') or database.get('username')
+			database = args.cmd_args.get('database') or os.environ.get('PGDATABASE') or database.get('database') or 'template1'
+			main_command  = [ "psql" ]
+			main_command += [ "--host", "localhost" ]
+			main_command += [ "--port", port ]
+			main_command += args.cmd_args.get('extra_arguments')
+			main_command += [ database ]
+			main_command += [ username ]
+		elif args.cmd_args.get('command') == "mysql":
+			username = args.cmd_args.get('username') or database.get('username')
+			database = args.cmd_args.get('database') or database.get('database') or 'mysql'
+			main_command  = [ "mysql" ]
+			main_command += [ "--protocol", "tcp" ] # defaults to local socket otherwise
+			main_command += [ "--host", "localhost" ]
+			main_command += [ "--port", port ]
+			main_command += [ "--user", username ]
+
+			if args.cmd_args.get('password'):
+				# we intentionally only support -p without an argument; it would
+				# create ambiguity for argparse otherwise.
+				main_command += [ "-p" ]
+
+			main_command += args.cmd_args.get('extra_arguments')
+			main_command += [ database ]
+
+	elif args.cmd_args.get('command') == "tunnel":
+		l_args = [
+			args.cmd_args.get('local_port'),
+			args.cmd_args.get('remote_host'),
+			args.cmd_args.get('remote_port'),
+		]
+
+		ssh_command += [ "-L", ":".join(l_args) ]
+		ssh_command += [ ip_address ]
+		ssh_command += [ "echo Port forwarding tunnel established. Hit Ctrl-C to terminate.; sleep infinity" ]
+
+	if main_command:
+		mc_path = shutil.which(main_command[0])
+
+		if not mc_path:
+			raise SystemExit(f"ERROR:  Command {main_command[0]} not found")
+
+		main_command[0] = mc_path
+
+	return (ssh_command, main_command)
+
 # ----------------------------------------------------------------------
 
 args = FarSshArgs()
 ssh_keys = SshKeys(args)
 
+database = select_database(args)
+
 ip_address = run_ecs_task(args, ssh_keys)
 
 ssh_keys.write_known_hosts(ip_address)
+(ssh_command, main_command) = build_commands(args, ip_address, database)
 
-ssh_command  = ["ssh"]
-ssh_command += [ "-p", args.ssh_port ]
-ssh_command += [ "-o", f"IdentityFile {ssh_keys.login_key_file}" ]
-ssh_command += [ "-o", f"IdentitiesOnly yes" ]
-ssh_command += [ "-o", f"UserKnownHostsFile {ssh_keys.known_hosts_file}" ]
-ssh_command += [ "-o", f"StrictHostKeyChecking yes" ]
-ssh_command += [ "-l", f"root" ]
+if not main_command:
+	try:
+		subprocess.run(ssh_command)
+	except KeyboardInterrupt:
+		pass
 
-if args.cmd_args.get('command') == "ssh":
-	ssh_command += [ ip_address ]
-	ssh_command += args.cmd_args.get('arguments')
+	exit(0)
 
-	print("------------------------------------------------------------------------")
-	print()
+ssh_command.insert(1, "-n") # StdinNull
+ssh_command += [ "echo connected; sleep infinity" ]
+with subprocess.Popen(ssh_command, stdout = subprocess.PIPE, stdin = subprocess.DEVNULL, text = True) as ssh:
+	try:
+		ssh_out = ssh.stdout.readline().strip() # wait for "connected"
+		ssh.stdout.close()
 
-elif args.cmd_args.get('command') == "proxy":
-	ssh_command += [ "-D", "1080" ]
-	ssh_command += [ ip_address ]
-	ssh_command += [ "echo SOCKS proxy available on port 1080. Hit Ctrl-C to terminate.; sleep infinity" ]
+		print(f"Tunnel connection established.")
+		print(f"Running {' '.join(main_command)}")
+		print("------------------------------------------------------------------------")
 
-elif args.cmd_args.get('command') == "tunnel":
-	l_args = [
-		args.cmd_args.get('local_port'),
-		args.cmd_args.get('remote_host'),
-		args.cmd_args.get('remote_port'),
-	]
+		subprocess.run(main_command)
 
-	ssh_command += [ "-L", ":".join(l_args) ]
-	ssh_command += [ ip_address ]
-	ssh_command += [ "echo Port forwarding tunnel established. Hit Ctrl-C to terminate.; sleep infinity" ]
-
-try:
-	subprocess.run(ssh_command, check = False)
-except KeyboardInterrupt:
-	pass
+	finally:
+		ssh.terminate()
 

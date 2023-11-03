@@ -8,14 +8,31 @@ FarSSH features a SOCKS proxy mode, enabling your browser to be "in" the target 
 resources and as a quick way to tunnel all your browser traffic, so your browser's connections will
 appear to come from this AWS region's public IP addresses (like a VPN).
 
-FarSSH sessions will incur AWS charges only when you use it, at roughly $0.01 per hour, calculated per second
-(AWS Fargate charges).
+FarSSH integrates with the `psql` and `mysql` command line clients for easy database access.
 
-Resources are deployed in *your* AWS account; there is no third party / no external service involved.
-
+Resources are deployed in *your* AWS account; there is no third party / no external service involved. AWS charges apply,
+at roughly $0.01 per hour (billed per second) per active client; no charges when no client is active.
 
 
 ## Usage
+
+### SQL client mode
+
+To launch a `psql` or `mysql` client directly to one of your RDS databases (instance or cluster), simply:
+```
+farssh psql [-U username] [database_name]
+```
+
+For MySQL / MariaDB:
+```
+farssh mysql -p [-u username] [database_name]
+```
+
+If only one matching database is available, it will automatically be selected. If there are multiple databases,
+use `--identifier` to select one; otherwise, a list of available databases will be shown.
+
+When not specified, username and database_name will be taken from the RDS configuration (master username and the
+initial database).
 
 ### Tunnel mode
 
@@ -46,6 +63,10 @@ If you just need a shell inside your VPC, run
 farssh ssh
 ```
 
+### Additional Arguments
+
+The `psql`, `mysql` and `ssh` commands can be used with additional arguments that will be passed to the client, so you
+could do something like `farssh ssh -- /sbin/ip address` or `farssh psql -- -c "select foo from bar"`.
 
 
 ## Installation
@@ -60,6 +81,7 @@ farssh ssh
    * Python 3
    * [AWS SDK for Python](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html), aka `boto3`
    * OpenSSH `ssh` client
+   * The `psql` / `mysql` command line utilities if you want to use the respective mode
 
 ### Deploy configuration on AWS
 
@@ -203,8 +225,6 @@ the SSH client will "strictly" check the expected host key.
 
 ## Future ideas
 
-* Add support for starting to actual client programs, something like `farssh psql myDatabase1` to
-  look up the RDS endpoint for `myDatabase1`, establish a tunnel and then execute `psql`
 * Support for multiple VPCs per region
 * Optionally use some kind of "reverse SSH", so the FarSSH task does not need a public IP address
 * Enable using existing ECS clusters (possibly including EC2-based)
@@ -242,3 +262,4 @@ For everything else:
 
 I'm (still) trying to get used to X/Twitter as [@apparentorder](https://twitter.com/apparentorder). DMs are open.
 You can also try legacy message delivery to apparentorder@neveragain.de.
+
