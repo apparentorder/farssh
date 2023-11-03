@@ -81,7 +81,7 @@ class FarSshArgs:
 
 		parser_mysql = subparsers.add_parser('mysql', help = 'establish tunnel to a mysql/mariadb endpoint and launch the mysql client')
 		parser_mysql.add_argument('-i', '--identifier', help='database identifier (RDS)')
-		parser_mysql.add_argument('-p', '--password', dest='password', action='store_true', help='mysql password')
+		parser_mysql.add_argument('-p', '--password', dest='password', action='store_true', help='ask for mysql password (pass -p to the mysql client)')
 		parser_mysql.add_argument('-u', '--user', dest='username', help=argparse.SUPPRESS)
 		parser_mysql.add_argument('-U', '--username', help='database username')
 		parser_mysql.add_argument('database', nargs = '?', help='database name (in the DB engine)')
