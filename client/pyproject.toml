@@ -1,0 +1,31 @@
+[project]
+name = "farssh"
+dynamic = ["version"]
+readme = "../README.md"
+license = { text = "BSD 2-clause" }
+authors = [ { name="@apparentorder", email="apparentorder@neveragain.de" } ]
+description = "Secure on-demand connections into AWS VPCs"
+requires-python = ">=3.8"
+dependencies = [
+	"boto3",
+]
+keywords = ["aws", "vpc", "ssh", "tunnel", "proxy", "rds", "postgresql", "mysql"]
+classifiers = [
+	"Programming Language :: Python :: 3",
+	"License :: OSI Approved :: BSD License",
+]
+
+[project.urls]
+Homepage = "https://github.com/apparentorder/farssh"
+
+[project.scripts]
+farssh = "farssh:__main__"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/farssh/const.py"
+pattern = "^FARSSH_VERSION\\s*=[^0-9a-z.]*(?P<version>[0-9a-z.]+)"
+
