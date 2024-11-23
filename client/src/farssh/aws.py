@@ -112,28 +112,51 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 def select_database(args):
 	rds = boto3.client('rds')
 
-	available  = []
-	available += rds.describe_db_instances()['DBInstances']
-	available += rds.describe_db_clusters()['DBClusters']
+	db_instances = rds.describe_db_instances()['DBInstances']
+	db_clusters = rds.describe_db_clusters()['DBClusters']
+	db_clusters_with_instances = [dbi.get('DBClusterIdentifier') for dbi in db_instances if dbi.get('DBClusterIdentifier')]
+
+	available = []
+
+	for candidate_instance in db_instances:
+		available += [{
+			'identifier': candidate_instance.get('DBInstanceIdentifier'),
+			'cluster':    candidate_instance.get('DBClusterIdentifier'),
+			'engine':     candidate_instance.get('Engine'),
+			'status':     candidate_instance.get('DBInstanceStatus'),
+			'hostname':   candidate_instance['Endpoint'].get('Address'),
+			'port':       candidate_instance['Endpoint'].get('Port'),
+			'database':   candidate_instance.get('DBName'),
+			'username':   candidate_instance.get('MasterUsername'),
+		}]
+
+	for candidate_cluster in db_clusters:
+		cluster_id = candidate_cluster.get('DBClusterIdentifier')
+
+		# exclude clusters that also have associated instances
+		if cluster_id in db_clusters_with_instances:
+			continue
+
+		available += [{
+			'identifier': cluster_id,
+			'cluster':    cluster_id,
+			'engine':     candidate_instance.get('Engine'),
+			'status':     candidate_cluster.get('Status'),
+			'hostname':   candidate_cluster['Endpoint'],
+			'port':       candidate_cluster.get('Port'),
+			'database':   candidate_cluster.get('DatabaseName'),
+			'username':   candidate_cluster.get('MasterUsername'),
+		}]
 
 	candidates = []
 	for db in available:
-		if db.get('DBInstanceStatus') == "creating":
+		if db['status'] != "available":
 			continue
 
-		if db.get('Status') == "creating":
+		if args.cmd_args.get('command') == "psql" and "postgres" not in db['engine']:
 			continue
 
-		db['database'] = db.get('DatabaseName') or db.get('DBName')
-		db['identifier'] = db.get('DBClusterIdentifier') or db.get('DBInstanceIdentifier')
-		db['hostname'] = db['Endpoint'] if isinstance(db['Endpoint'], str) else db['Endpoint'].get('Address')
-		db['username'] = db.get('MasterUsername')
-		db['port'] = db.get('Port') or db['Endpoint'].get('Port')
-
-		if args.cmd_args.get('command') == "psql" and "postgres" not in db['Engine']:
-			continue
-
-		if args.cmd_args.get('command') == "mysql" and "mysql" not in db['Engine'] and "maria" not in db['Engine']:
+		if args.cmd_args.get('command') == "mysql" and "mysql" not in db['engine'] and "maria" not in db['engine']:
 			continue
 
 		if args.cmd_args.get('identifier') and db['identifier'].lower() != args.cmd_args.get('identifier').lower():
