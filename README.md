@@ -113,17 +113,12 @@ For example, to allow tunnel connections to your RDS instance, modify a correspo
 * Type: PostgreSQL (or MySQL or ...)
 * Source: custom: security group `farssh-default`
 
-### Download the FarSSH client
+### Install the FarSSH client
 
-Download the [client](https://raw.githubusercontent.com/apparentorder/farssh/main/client/farssh) (Python),
-place it appropriately, e.g. in your `~/bin/` directory, and make it executable.
+The FarSSH client is available in the Python Package Index, so you can simply use `pip` to install and update:
 
-For example:
 ```
-curl -o ~/bin/farssh \
-https://raw.githubusercontent.com/apparentorder/farssh/main/client/farssh
-
-chmod 755 ~/bin/farssh
+pip install farssh
 ```
 
 FarSSH will use the target AWS account, region and credentials from the local AWS configuration, e.g. your configuration in `~/.aws`,
