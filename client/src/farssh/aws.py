@@ -68,11 +68,11 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 	}
 
 	ecs = boto3.client('ecs')
+	capacity_provider = "FARGATE_SPOT" if args.cmd_args.get('fargate_spot') else "FARGATE"
 	tasks = ecs.run_task(
 		cluster = "farssh",
 		capacityProviderStrategy = [
-			{ "capacityProvider": "FARGATE", "weight": 1, "base": 1 },
-			# { "capacityProvider": "FARGATE_SPOT", "weight": 0, "base": 0 }, # not supported for Arm images
+			{ "capacityProvider": capacity_provider, "weight": 0, "base": 0 },
 		],
 		taskDefinition = f"farssh-{farssh_id}",
 		enableExecuteCommand = args.enable_execute_command,
@@ -84,7 +84,7 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 	task_arn = task['taskArn']
 	task_id = task_arn.split('/')[-1]
 
-	print(f"Launched FarSSH ECS task: {task_id}")
+	print(f"Launched FarSSH ECS task: {task_id} (provider: {capacity_provider})")
 	print(f"Status: {task['lastStatus']}")
 
 	while True:

@@ -45,6 +45,7 @@ class FarsshArguments:
 		)
 
 		parser.add_argument('-6', '--ipv6', action='store_true', help = 'use IPv6 (disables public IPv4 when possible)')
+		parser.add_argument('-S', '--spot', action='store_true', dest = 'fargate_spot', help = 'use Fargate Spot')
 		parser.add_argument('-V', '--version', action='version', version = f'FarSSH {FARSSH_VERSION}')
 
 		subparsers = parser.add_subparsers(dest = 'command', required = True)
