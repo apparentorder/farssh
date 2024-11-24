@@ -132,8 +132,6 @@ That's it. For usage, see above.
 
 ### Updating
 
-To update the FarSSH client, simply re-download the client (see above).
-
 To update the FarSSH Cloudformation template, select the FarSSH stack in the Cloudformation console, hit
 "Update" and replace the template using this S3 url: `https://farssh.s3.amazonaws.com/cloudformation/farssh.yaml`
 
