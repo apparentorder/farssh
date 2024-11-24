@@ -42,3 +42,6 @@ def main():
 		finally:
 			ssh.terminate()
 
+if __name__ == "__main__":
+	main()
+

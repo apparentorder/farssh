@@ -19,7 +19,7 @@ classifiers = [
 Homepage = "https://github.com/apparentorder/farssh"
 
 [project.scripts]
-farssh = "farssh.main:main"
+farssh = "farssh.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
