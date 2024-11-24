@@ -142,7 +142,7 @@ To update FarSSH settings, update the stack with the "Use current template" opti
 
 ## IPv6 Support
 
-Given that AWS will soon charge for any use of public IPv4 addresses, it's important to use IPv6 when possible.
+Given that AWS now charges for any use of public IPv4 addresses, it's important to use IPv6 when possible.
 
 FarSSH supports IPv6 both on the AWS side and on the client.
 
