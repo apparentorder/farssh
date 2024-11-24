@@ -227,7 +227,6 @@ the SSH client will "strictly" check the expected host key.
   ad-hoc VPN endpoint instead of an SSH server; I have yet to think through what kind of sense
   that could make
 * Properly tag the public ECR image(s) so it can be coupled with released versions
-* Figure out how to distribute the client properly (especially wrt. updates)
 
  
   
