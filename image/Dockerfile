@@ -1,7 +1,7 @@
 FROM alpine:3.20 AS build
 
-ENV FARSSH_VERSION 0.5
-ENV FARSSH_DATE 2024-11-27
+ENV FARSSH_VERSION=0.5
+ENV FARSSH_DATE=2024-11-27
 
 RUN apk add openssh
 RUN sed -i "s/AllowTcpForwarding no/AllowTcpForwarding yes/" /etc/ssh/sshd_config
