@@ -1,4 +1,6 @@
 Welcome to some FarSSH relay.
 
+Version: __FARSSH_VERSION__ (built: __FARSSH_DATE__)
+
 See https://github.com/apparentorder/farssh for further information.
 

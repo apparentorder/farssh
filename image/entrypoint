@@ -3,6 +3,10 @@ set -e
 
 echo ">>> FarSSH container image $FARSSH_VERSION ($FARSSH_DATE)"
 
+# Generate motd with version and date
+sed -i "s/__FARSSH_VERSION__/$FARSSH_VERSION/g" /etc/motd
+sed -i "s/__FARSSH_DATE__/$FARSSH_DATE/g" /etc/motd
+
 host_algos=$(env | sed -n 's/FARSSH_SSH_HOST_\([A-Z0-9]*\)_KEY_BASE64=.*/\1/p')
 
 echo ">>> FarSSH host keys:"
