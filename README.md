@@ -135,6 +135,8 @@ That's it. For usage, see above.
 To update the FarSSH Cloudformation template, select the FarSSH stack in the Cloudformation console, hit
 "Update" and replace the template using this S3 url: `https://farssh.s3.amazonaws.com/cloudformation/farssh.yaml`
 
+Update the image URI to reflect the updated version.
+
 To update FarSSH settings, update the stack with the "Use current template" option.
 
 
@@ -226,8 +228,8 @@ the SSH client will "strictly" check the expected host key.
   that could make
 * Properly tag the public ECR image(s) so it can be coupled with released versions
 
- 
-  
+
+
 ## Motivation
 
 To my knowledge, all alternative options use [time-based billing](https://tty.neveragain.de/2021/06/29/timeless-services.html),
