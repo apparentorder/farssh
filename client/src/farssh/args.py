@@ -15,6 +15,7 @@ class FarsshArguments:
 
 		# defaults, if not found in Parameter Store
 		self.force_public_ipv4 = False
+		self.ssh_port = "20022"
 
 		for (key, value) in get_farssh_ssm_parameters(FARSSH_ID).items():
 			setattr(self, key, value)

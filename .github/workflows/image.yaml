@@ -3,26 +3,27 @@ on:
   push:
     branches:
       - main
-    paths: 
+    paths:
       - '.github/workflows/image.yaml'
+      - 'client/src/farssh/const.py'
       - 'image/*'
 
 permissions:
   id-token: write
   contents: read
-  
+
 jobs:
 
   deploy_source:
     name: build and push farssh to ecr-public
     runs-on: ubuntu-latest
     steps:
-    
+
       - name: Git clone the repository
-        uses: actions/checkout@v3
-        
+        uses: actions/checkout@v6
+
       - name: configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::329261680777:role/farssh-github
           role-session-name: github-action-push
@@ -40,25 +41,27 @@ jobs:
 
       # use qemu + buildx to build arm64 image, per
       # https://community.ibm.com/community/user/powerdeveloper/blogs/siddhesh-ghadi/2023/02/08/build-multi-arch-images-on-github-actions-with-bui
-      
+
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: build and push to ECR
         env:
           ECR_REPOSITORY: public.ecr.aws/apparentorder/farssh
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker buildx build --push --platform linux/arm64 --tag $ECR_REPOSITORY:$IMAGE_TAG image
-          docker buildx build --push --platform linux/arm64 --tag $ECR_REPOSITORY:latest image
+          VERSION=$(python -c 'from client.src.farssh.const import FARSSH_VERSION; print(FARSSH_VERSION);')
+          DATE=$(date +%Y-%m-%d)
+          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $ECR_REPOSITORY:$VERSION image
+          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $ECR_REPOSITORY:latest image
 
       - name: build and push to Dockerhub
         env:
           DOCKERHUB_REPOSITORY: apparentorder/farssh
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker buildx build --push --platform linux/arm64 --tag $DOCKERHUB_REPOSITORY:$IMAGE_TAG image
-          docker buildx build --push --platform linux/arm64 --tag $DOCKERHUB_REPOSITORY:latest image
+          VERSION=$(python -c 'from client.src.farssh.const import FARSSH_VERSION; print(FARSSH_VERSION);')
+          DATE=$(date +%Y-%m-%d)
+          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $DOCKERHUB_REPOSITORY:$VERSION image
+          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $DOCKERHUB_REPOSITORY:latest image

@@ -46,8 +46,12 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 			"value": ssh_keys.login_key_pub,
 		},
 		{
+			"name": "FARSSH_SSH_HOST_ED25519_KEY_BASE64",
+			"value": base64.b64encode(bytes(ssh_keys.ed25519_host_key, "utf-8")).decode("utf-8")
+		},
+		{
 			"name": "FARSSH_SSH_HOST_RSA_KEY_BASE64",
-			"value": base64.b64encode(bytes(ssh_keys.host_key, "utf-8")).decode("utf-8")
+			"value": base64.b64encode(bytes(ssh_keys.rsa_host_key, "utf-8")).decode("utf-8")
 		}
 	]
 
@@ -140,7 +144,7 @@ def select_database(args):
 		available += [{
 			'identifier': cluster_id,
 			'cluster':    cluster_id,
-			'engine':     candidate_instance.get('Engine'),
+			'engine':     candidate_cluster.get('Engine'),
 			'status':     candidate_cluster.get('Status'),
 			'hostname':   candidate_cluster['Endpoint'],
 			'port':       candidate_cluster.get('Port'),

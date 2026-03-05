@@ -5,9 +5,9 @@ readme = "../README.md"
 license = { text = "BSD 2-clause" }
 authors = [ { name="@apparentorder", email="apparentorder@neveragain.de" } ]
 description = "Secure on-demand connections into AWS VPCs"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
-	"boto3",
+	"boto3>=1.35",
 ]
 keywords = ["aws", "vpc", "ssh", "tunnel", "proxy", "rds", "postgresql", "mysql"]
 classifiers = [
