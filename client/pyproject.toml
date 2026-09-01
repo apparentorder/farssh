@@ -5,7 +5,7 @@ readme = "../README.md"
 license = { text = "BSD 2-clause" }
 authors = [ { name="@apparentorder", email="apparentorder@neveragain.de" } ]
 description = "Secure on-demand connections into AWS VPCs"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
 	"boto3>=1.35",
 ]

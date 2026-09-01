@@ -78,7 +78,7 @@ could do something like `farssh ssh -- /sbin/ip address` or `farssh psql -- -c "
      in a different VPC
  * For the client machine:
    * local AWS configuration (appropriate credentials / profiles configured etc.)
-   * Python 3.10+
+   * Python 3.11+
    * [AWS SDK for Python](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html), aka `boto3`
    * OpenSSH `ssh` client
    * The `psql` / `mysql` command line utilities if you want to use the respective mode
@@ -226,7 +226,7 @@ the SSH client will "strictly" check the expected host key.
 * Only half-way through building this I realized that I could have built the same thing for an
   ad-hoc VPN endpoint instead of an SSH server; I have yet to think through what kind of sense
   that could make
-* Git/GitHub Releases so published versions match the already-versioned public ECR and Docker Hub image tags
+* Avoid retagging `$VERSION` after a release; bump FARSSH_VERSION (and the git tag) before rebuilding/pushing the image
 
 
 
