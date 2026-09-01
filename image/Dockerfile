@@ -1,4 +1,4 @@
-FROM alpine:3.23 AS build
+FROM alpine:3.24 AS build
 
 ARG FARSSH_DATE=dev
 ARG FARSSH_VERSION=dev
