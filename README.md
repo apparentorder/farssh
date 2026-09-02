@@ -216,6 +216,7 @@ the SSH client will "strictly" check the expected host key.
 
 * Currently, FarSSH can be deployed to only one VPC per region per account (deploying multiple times to
   different regions works fine)
+* The SSH host private key is passed to the ECS task as an environment override (visible to IAM principals who can describe the task), and is only useful to an attacker who can also actively intercept that session's single SSH handshake.
 
 
 ## Future ideas

@@ -48,10 +48,6 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 		{
 			"name": "FARSSH_SSH_HOST_ED25519_KEY_BASE64",
 			"value": base64.b64encode(bytes(ssh_keys.ed25519_host_key, "utf-8")).decode("utf-8")
-		},
-		{
-			"name": "FARSSH_SSH_HOST_RSA_KEY_BASE64",
-			"value": base64.b64encode(bytes(ssh_keys.rsa_host_key, "utf-8")).decode("utf-8")
 		}
 	]
 
