@@ -8,6 +8,7 @@ ENV FARSSH_DATE=${FARSSH_DATE}
 
 RUN apk add openssh
 RUN sed -i "s/AllowTcpForwarding no/AllowTcpForwarding yes/" /etc/ssh/sshd_config
+RUN echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
 
 ADD motd /etc/motd
 ADD entrypoint /farssh-entrypoint
