@@ -59,6 +59,12 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 	overrides = {}
 	overrides['containerOverrides'] = [ override_entry ]
 
+	if args.enable_execute_command:
+		exec_task_role_arn = getattr(args, 'exec_task_role_arn', None)
+		if not exec_task_role_arn:
+			raise SystemExit("ERROR:  ECS Exec requested, but exec_task_role_arn not found. Update the FarSSH CloudFormation stack.")
+		overrides['taskRoleArn'] = exec_task_role_arn
+
 	network_configuration = {
 		"awsvpcConfiguration": {
 			"subnets": args.public_subnets,
@@ -85,6 +91,8 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 	task_id = task_arn.split('/')[-1]
 
 	print(f"Launched FarSSH ECS task: {task_id} (provider: {capacity_provider})")
+	if args.enable_execute_command:
+		print("ECS Exec: enabled")
 	print(f"Status: {task['lastStatus']}")
 
 	while True:
