@@ -6,6 +6,14 @@ import sys
 from farssh.const import *
 from farssh.aws import get_farssh_ssm_parameters
 
+_SSM_KEYS = (
+	"public_subnets",
+	"security_group",
+	"ssh_port",
+	"force_public_ipv4",
+	"exec_task_role_arn",
+)
+
 class FarsshArguments:
 	def __init__(self):
 		self.cmd_args = self._parse_args()
@@ -16,9 +24,9 @@ class FarsshArguments:
 		self.ssh_port = "20022"
 
 		for (key, value) in get_farssh_ssm_parameters(FARSSH_ID).items():
-			setattr(self, key, value)
+			if key in _SSM_KEYS:
+				setattr(self, key, value)
 
-		# CLI only; set after SSM so a parameter cannot enable this.
 		self.enable_execute_command = bool(self.cmd_args.get('execute_command'))
 
 		try:
