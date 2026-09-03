@@ -135,7 +135,9 @@ That's it. For usage, see above.
 To update the FarSSH Cloudformation template, select the FarSSH stack in the Cloudformation console, hit
 "Update" and replace the template using this S3 url: `https://farssh.s3.amazonaws.com/cloudformation/farssh.yaml`
 
-Update the image URI to reflect the updated version.
+The default image tag is `v0`, which is updated in place when the FarSSH image is rebuilt (including sshd
+patches). New tasks pick that up without changing `ImageUri`. A future incompatible image would be published
+as `v1`.
 
 To update FarSSH settings, update the stack with the "Use current template" option.
 
@@ -186,7 +188,8 @@ architecture diagram:
 
 FarSSH publishes a container image in AWS Public ECR at `public.ecr.aws/apparentorder/farssh`. This is
 a tiny Alpine-based image that only runs an SSH server. There is also a background process that will
-terminate the task if there are no active connections.
+terminate the task if there are no active connections. The CloudFormation default tag `v0` moves when
+the image is rebuilt; version tags (for example `0.6.1`) are also published.
 
 The same image is also published to Dockerhub at `docker.io/apparentorder/farssh`, because Dockerhub
 supports IPv6 and AWS Public ECR does not. Using Dockerhub over IPv4 might result in pull errors due

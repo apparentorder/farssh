@@ -43,14 +43,15 @@ Parameters:
 
   ImageUri:
     Description: |
-      When FarSSH runs in an IPv6 subnet, change this to the DockerHub image, as
-      AWS ECR Public does not support image pull over IPv6.
+      `:v0` tracks the current FarSSH v0 image (sshd patches land on the next
+      task start without updating the stack). Use the DockerHub image when
+      FarSSH runs in an IPv6 subnet; AWS ECR Public does not support pulls
+      over IPv6.
     Type: String
-    # Placeholder __VERSION__ is replaced during deployment to S3.
-    Default: public.ecr.aws/apparentorder/farssh:__VERSION__
+    Default: public.ecr.aws/apparentorder/farssh:v0
     AllowedValues:
-    - public.ecr.aws/apparentorder/farssh:__VERSION__
-    - docker.io/apparentorder/farssh:__VERSION__
+    - public.ecr.aws/apparentorder/farssh:v0
+    - docker.io/apparentorder/farssh:v0
 
 Conditions:
   AwslogsEnabled: !Equals [!Ref EnableAwslogsDriver, true]
