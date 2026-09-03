@@ -71,7 +71,7 @@ Resources:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
               ArnLike:
-                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
+                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*
         Policies:
           - PolicyName: farssh-execution
             PolicyDocument:
@@ -97,7 +97,7 @@ Resources:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
               ArnLike:
-                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
+                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*
 
   # Attached only when the client passes --execute-command (RunTask taskRoleArn override).
   FarSshExecTaskRole:
@@ -114,7 +114,7 @@ Resources:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
               ArnLike:
-                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
+                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy
 
