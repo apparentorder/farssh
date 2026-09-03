@@ -57,7 +57,7 @@ jobs:
         run: |
           VERSION=$(python -c 'from client.src.farssh.const import FARSSH_VERSION; print(FARSSH_VERSION);')
           DATE=$(date +%Y-%m-%d)
-          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $ECR_REPOSITORY:$VERSION --tag $ECR_REPOSITORY:v0 --tag $ECR_REPOSITORY:latest image
+          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $ECR_REPOSITORY:$VERSION --tag $ECR_REPOSITORY:v1 --tag $ECR_REPOSITORY:latest image
 
       - name: build and push to Dockerhub
         env:
@@ -65,4 +65,4 @@ jobs:
         run: |
           VERSION=$(python -c 'from client.src.farssh.const import FARSSH_VERSION; print(FARSSH_VERSION);')
           DATE=$(date +%Y-%m-%d)
-          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $DOCKERHUB_REPOSITORY:$VERSION --tag $DOCKERHUB_REPOSITORY:v0 --tag $DOCKERHUB_REPOSITORY:latest image
+          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $DOCKERHUB_REPOSITORY:$VERSION --tag $DOCKERHUB_REPOSITORY:v1 --tag $DOCKERHUB_REPOSITORY:latest image

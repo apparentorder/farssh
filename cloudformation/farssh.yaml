@@ -43,15 +43,15 @@ Parameters:
 
   ImageUri:
     Description: |
-      `:v0` tracks the current FarSSH v0 image (sshd patches land on the next
+      `:v1` tracks the current FarSSH v1 image (sshd patches land on the next
       task start without updating the stack). Use the DockerHub image when the
       task has no IPv4 path to the internet: ECR Public can serve IPv6 pulls,
       but Fargate in a dual-stack subnet still uses IPv4 registry endpoints.
     Type: String
-    Default: public.ecr.aws/apparentorder/farssh:v0
+    Default: public.ecr.aws/apparentorder/farssh:v1
     AllowedValues:
-    - public.ecr.aws/apparentorder/farssh:v0
-    - docker.io/apparentorder/farssh:v0
+    - public.ecr.aws/apparentorder/farssh:v1
+    - docker.io/apparentorder/farssh:v1
 
 Conditions:
   AwslogsEnabled: !Equals [!Ref EnableAwslogsDriver, true]
