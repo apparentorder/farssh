@@ -99,6 +99,7 @@ Resources:
               ArnLike:
                 "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
 
+  # Attached only when the client passes --execute-command (RunTask taskRoleArn override).
   FarSshExecTaskRole:
     Type: AWS::IAM::Role
     Properties:
