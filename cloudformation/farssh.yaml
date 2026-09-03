@@ -70,8 +70,18 @@ Resources:
             Condition:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+              ArnLike:
+                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
+        Policies:
+          - PolicyName: farssh-execution
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/farssh/${FarSshSuffix}:*
 
   FarSshTaskRole:
     Type: AWS::IAM::Role
@@ -86,6 +96,8 @@ Resources:
             Condition:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
+              ArnLike:
+                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
 
   FarSshExecTaskRole:
     Type: AWS::IAM::Role
@@ -100,6 +112,8 @@ Resources:
             Condition:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
+              ArnLike:
+                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy
 
