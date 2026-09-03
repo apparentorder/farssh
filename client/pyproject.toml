@@ -1,7 +1,7 @@
 [project]
 name = "farssh"
 dynamic = ["version"]
-readme = "../README.md"
+readme = "README.md"
 license = { text = "BSD 2-clause" }
 authors = [ { name="@apparentorder", email="apparentorder@neveragain.de" } ]
 description = "Secure on-demand connections into AWS VPCs"
@@ -22,8 +22,9 @@ Homepage = "https://github.com/apparentorder/farssh"
 farssh = "farssh.__main__:main"
 
 [build-system]
-requires = ["hatchling>=1.24,<1.32"]
-build-backend = "hatchling.build"
+requires = ["hatchling>=1.24,<2"]
+build-backend = "farssh_build"
+backend-path = ["."]
 
 [tool.hatch.version]
 path = "src/farssh/const.py"
