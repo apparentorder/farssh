@@ -6,7 +6,7 @@ ARG FARSSH_VERSION=dev
 ENV FARSSH_VERSION=${FARSSH_VERSION}
 ENV FARSSH_DATE=${FARSSH_DATE}
 
-RUN apk add openssh
+RUN apk add --no-cache openssh
 RUN sed -i "s/AllowTcpForwarding no/AllowTcpForwarding yes/" /etc/ssh/sshd_config
 RUN echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
 
