@@ -135,7 +135,9 @@ That's it. For usage, see above.
 To update the FarSSH Cloudformation template, select the FarSSH stack in the Cloudformation console, hit
 "Update" and replace the template using this S3 url: `https://farssh.s3.amazonaws.com/cloudformation/farssh.yaml`
 
-Update the image URI to reflect the updated version.
+The default image tag is `v1`, which is updated in place when the FarSSH image is rebuilt (including sshd
+patches). New tasks pick that up without changing `ImageUri`. A future incompatible image would be published
+as `v2`.
 
 To update FarSSH settings, update the stack with the "Use current template" option.
 
@@ -168,8 +170,12 @@ request a public IPv4 address, even when a clients connects via IPv6. With the p
 
 Alternatively, to fully avoid using public IPv4 addresses, change these options during the Cloudformation setup:
 
-- set `ImageUri` to the `docker.io` address (the AWS ECR does not support IPv6)
-- disable the `awslogs` driver (Cloudwatch Logs does not support IPv6)
+- set `ImageUri` to the `docker.io` address. ECR Public can serve pulls over IPv6
+  (`ecr-public.aws.com`; `public.ecr.aws` is still IPv4-only), but Fargate in a
+  dual-stack subnet still uses IPv4 AWS registry endpoints, and there is no
+  task-definition option to select the dual-stack hostname.
+- disable the `awslogs` driver. CloudWatch Logs has dual-stack endpoints too, but
+  Fargate does not allow `awslogs-endpoint`, so it keeps calling the IPv4 Logs API.
 
 
 ## How it works
@@ -186,11 +192,13 @@ architecture diagram:
 
 FarSSH publishes a container image in AWS Public ECR at `public.ecr.aws/apparentorder/farssh`. This is
 a tiny Alpine-based image that only runs an SSH server. There is also a background process that will
-terminate the task if there are no active connections.
+terminate the task if there are no active connections. The CloudFormation default tag `v1` moves when
+the image is rebuilt; version tags (for example `1.0.0`) are also published.
 
-The same image is also published to Dockerhub at `docker.io/apparentorder/farssh`, because Dockerhub
-supports IPv6 and AWS Public ECR does not. Using Dockerhub over IPv4 might result in pull errors due
-to rate limit though.
+The same image is also published to Dockerhub at `docker.io/apparentorder/farssh`,
+which is reachable over IPv6. Fargate in a dual-stack subnet still cannot pull
+`public.ecr.aws` over IPv6 (see IPv6 Support above). Using Dockerhub over IPv4
+might result in pull errors due to rate limit though.
 
 ### Resources in the target environment
 
@@ -216,6 +224,7 @@ the SSH client will "strictly" check the expected host key.
 
 * Currently, FarSSH can be deployed to only one VPC per region per account (deploying multiple times to
   different regions works fine)
+* The SSH host private key is passed to the ECS task as an environment override (visible to IAM principals who can describe the task), and is only useful to an attacker who can also actively intercept that session's single SSH handshake.
 
 
 ## Future ideas

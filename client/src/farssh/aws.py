@@ -48,10 +48,6 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 		{
 			"name": "FARSSH_SSH_HOST_ED25519_KEY_BASE64",
 			"value": base64.b64encode(bytes(ssh_keys.ed25519_host_key, "utf-8")).decode("utf-8")
-		},
-		{
-			"name": "FARSSH_SSH_HOST_RSA_KEY_BASE64",
-			"value": base64.b64encode(bytes(ssh_keys.rsa_host_key, "utf-8")).decode("utf-8")
 		}
 	]
 
@@ -62,6 +58,11 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 
 	overrides = {}
 	overrides['containerOverrides'] = [ override_entry ]
+
+	if args.enable_execute_command:
+		exec_task_role_arn = getattr(args, 'exec_task_role_arn', None)
+		if exec_task_role_arn:
+			overrides['taskRoleArn'] = exec_task_role_arn
 
 	network_configuration = {
 		"awsvpcConfiguration": {
@@ -89,6 +90,8 @@ def run_ecs_task(args, ssh_keys, farssh_id):
 	task_id = task_arn.split('/')[-1]
 
 	print(f"Launched FarSSH ECS task: {task_id} (provider: {capacity_provider})")
+	if args.enable_execute_command:
+		print("ECS Exec: enabled")
 	print(f"Status: {task['lastStatus']}")
 
 	while True:

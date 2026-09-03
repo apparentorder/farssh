@@ -7,6 +7,9 @@ on:
       - '.github/workflows/image.yaml'
       - 'client/src/farssh/const.py'
       - 'image/*'
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -20,17 +23,17 @@ jobs:
     steps:
 
       - name: Git clone the repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
         with:
           role-to-assume: arn:aws:iam::329261680777:role/farssh-github
           role-session-name: github-action-push
           aws-region: us-east-1
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: apparentorder
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -43,10 +46,10 @@ jobs:
       # https://community.ibm.com/community/user/powerdeveloper/blogs/siddhesh-ghadi/2023/02/08/build-multi-arch-images-on-github-actions-with-bui
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: build and push to ECR
         env:
@@ -54,8 +57,7 @@ jobs:
         run: |
           VERSION=$(python -c 'from client.src.farssh.const import FARSSH_VERSION; print(FARSSH_VERSION);')
           DATE=$(date +%Y-%m-%d)
-          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $ECR_REPOSITORY:$VERSION image
-          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $ECR_REPOSITORY:latest image
+          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $ECR_REPOSITORY:$VERSION --tag $ECR_REPOSITORY:v1 --tag $ECR_REPOSITORY:latest image
 
       - name: build and push to Dockerhub
         env:
@@ -63,5 +65,4 @@ jobs:
         run: |
           VERSION=$(python -c 'from client.src.farssh.const import FARSSH_VERSION; print(FARSSH_VERSION);')
           DATE=$(date +%Y-%m-%d)
-          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $DOCKERHUB_REPOSITORY:$VERSION image
-          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $DOCKERHUB_REPOSITORY:latest image
+          docker buildx build --push --platform linux/arm64 --build-arg FARSSH_VERSION=$VERSION --build-arg FARSSH_DATE=$DATE --tag $DOCKERHUB_REPOSITORY:$VERSION --tag $DOCKERHUB_REPOSITORY:v1 --tag $DOCKERHUB_REPOSITORY:latest image

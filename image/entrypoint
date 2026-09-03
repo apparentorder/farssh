@@ -7,20 +7,10 @@ echo ">>> FarSSH container image $FARSSH_VERSION ($FARSSH_DATE)"
 sed -i "s/__FARSSH_VERSION__/$FARSSH_VERSION/g" /etc/motd
 sed -i "s/__FARSSH_DATE__/$FARSSH_DATE/g" /etc/motd
 
-host_algos=$(env | sed -n 's/FARSSH_SSH_HOST_\([A-Z0-9]*\)_KEY_BASE64=.*/\1/p')
-
 echo ">>> FarSSH host keys:"
-for algo in $host_algos; do
-	algo_lower=$(echo "$algo" | tr '[A-Z]' '[a-z]')
-
-	keyfile="/etc/ssh/ssh_host_${algo_lower}_key"
-	eval "key=\"\$FARSSH_SSH_HOST_${algo}_KEY_BASE64\""
-	echo "$key" | base64 -d > "$keyfile"
-	chmod 600 "$keyfile"
-
-	# output fingerprint
-	ssh-keygen -lf "$keyfile"
-done
+printf '%s\n' "$FARSSH_SSH_HOST_ED25519_KEY_BASE64" | base64 -d > /etc/ssh/ssh_host_ed25519_key
+chmod 600 /etc/ssh/ssh_host_ed25519_key
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key
 
 mkdir ~/.ssh
 echo "$FARSSH_SSH_AUTHORIZED_KEYS" > ~/.ssh/authorized_keys

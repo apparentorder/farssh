@@ -6,19 +6,28 @@ import sys
 from farssh.const import *
 from farssh.aws import get_farssh_ssm_parameters
 
+_SSM_KEYS = (
+	"public_subnets",
+	"security_group",
+	"ssh_port",
+	"force_public_ipv4",
+	"exec_task_role_arn",
+)
+
 class FarsshArguments:
 	def __init__(self):
 		self.cmd_args = self._parse_args()
 		self.cmd_args['remote_port'] = self.cmd_args.get('remote_port') or self.cmd_args.get('local_port')
-
-		self.enable_execute_command = False
 
 		# defaults, if not found in Parameter Store
 		self.force_public_ipv4 = False
 		self.ssh_port = "20022"
 
 		for (key, value) in get_farssh_ssm_parameters(FARSSH_ID).items():
-			setattr(self, key, value)
+			if key in _SSM_KEYS:
+				setattr(self, key, value)
+
+		self.enable_execute_command = bool(self.cmd_args.get('execute_command'))
 
 		try:
 			self.public_subnets = self.public_subnets.split(',')
@@ -47,6 +56,7 @@ class FarsshArguments:
 
 		parser.add_argument('-6', '--ipv6', action='store_true', help = 'use IPv6 (disables public IPv4 when possible)')
 		parser.add_argument('-S', '--spot', action='store_true', dest = 'fargate_spot', help = 'use Fargate Spot')
+		parser.add_argument('--execute-command', action='store_true', dest = 'execute_command', help = 'enable ECS Exec (uses the exec task role)')
 		parser.add_argument('-V', '--version', action='version', version = f'FarSSH {FARSSH_VERSION}')
 
 		subparsers = parser.add_subparsers(dest = 'command', required = True)

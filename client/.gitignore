@@ -1,2 +1,5 @@
 dist
 src/farssh/__pycache__
+__pycache__
+# Copied from the repo root during the package build.
+README.md

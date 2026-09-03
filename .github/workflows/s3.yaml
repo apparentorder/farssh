@@ -5,7 +5,6 @@ on:
       - main
     paths:
       - '.github/workflows/s3.yaml'
-      - 'client/src/farssh/const.py'
       - 'cloudformation/*'
 
 permissions:
@@ -19,20 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Git clone the repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
         with:
           role-to-assume: arn:aws:iam::329261680777:role/farssh-github
           role-session-name: github-action-copy-s3
           aws-region: eu-central-1
       - name: copy cfn to s3
         run: |
-          VERSION=$(python -c 'from client.src.farssh.const import FARSSH_VERSION; print(FARSSH_VERSION);')
-          sed -i "s|__VERSION__|$VERSION|g" cloudformation/farssh.yaml
-          # Validate placeholder was replaced
-          if grep -q '__VERSION__' cloudformation/farssh.yaml; then
-            echo "ERROR: __VERSION__ placeholder not replaced"
-            exit 1
-          fi
           aws s3 sync cloudformation/ s3://farssh/cloudformation/

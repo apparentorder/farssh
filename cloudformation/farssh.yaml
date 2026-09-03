@@ -43,14 +43,15 @@ Parameters:
 
   ImageUri:
     Description: |
-      When FarSSH runs in an IPv6 subnet, change this to the DockerHub image, as
-      AWS ECR Public does not support image pull over IPv6.
+      `:v1` tracks the current FarSSH v1 image (sshd patches land on the next
+      task start without updating the stack). Use the DockerHub image when the
+      task has no IPv4 path to the internet: ECR Public can serve IPv6 pulls,
+      but Fargate in a dual-stack subnet still uses IPv4 registry endpoints.
     Type: String
-    # Placeholder __VERSION__ is replaced during deployment to S3.
-    Default: public.ecr.aws/apparentorder/farssh:__VERSION__
+    Default: public.ecr.aws/apparentorder/farssh:v1
     AllowedValues:
-    - public.ecr.aws/apparentorder/farssh:__VERSION__
-    - docker.io/apparentorder/farssh:__VERSION__
+    - public.ecr.aws/apparentorder/farssh:v1
+    - docker.io/apparentorder/farssh:v1
 
 Conditions:
   AwslogsEnabled: !Equals [!Ref EnableAwslogsDriver, true]
@@ -69,8 +70,18 @@ Resources:
             Condition:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+              ArnLike:
+                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
+        Policies:
+          - PolicyName: farssh-execution
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/farssh/${FarSshSuffix}:*
 
   FarSshTaskRole:
     Type: AWS::IAM::Role
@@ -85,8 +96,27 @@ Resources:
             Condition:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
+              ArnLike:
+                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
+
+  # Attached only when the client passes --execute-command (RunTask taskRoleArn override).
+  FarSshExecTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+              ArnLike:
+                "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/farssh
         ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy # for debugging (ecs execute command)
+          - arn:aws:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy
 
   SsmParameterPublicSubnets:
     Type: AWS::SSM::Parameter
@@ -115,6 +145,13 @@ Resources:
       Type: String
       Name: !Sub /farssh/${FarSshSuffix}/force_public_ipv4
       Value: !Ref ForcePublicIpv4
+
+  SsmParameterExecTaskRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Name: !Sub /farssh/${FarSshSuffix}/exec_task_role_arn
+      Value: !GetAtt FarSshExecTaskRole.Arn
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
