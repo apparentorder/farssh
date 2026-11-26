@@ -116,7 +116,7 @@ Resources:
               ArnLike:
                 "aws:SourceArn": !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*
         ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy
+          - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy
 
   SsmParameterPublicSubnets:
     Type: AWS::SSM::Parameter

@@ -85,8 +85,10 @@ could do something like `farssh ssh -- /sbin/ip address` or `farssh psql -- -c "
 
 ### Deploy configuration on AWS
 
-Use this [Cloudformation quick-create link](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://farssh.s3.amazonaws.com/cloudformation/farssh.yaml&stackName=farssh-default) to deploy necessary
-resources in the target environment.
+Use a CloudFormation quick-create link to deploy necessary resources in the target environment:
+
+* [Commercial AWS](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://farssh.s3.amazonaws.com/cloudformation/farssh.yaml&stackName=farssh-default)
+* [AWS European Sovereign Cloud (`eusc-de-east-1`)](https://eusc-de-east-1.console.amazonaws-eusc.eu/cloudformation/home#/stacks/create/review?templateURL=https://farssh.s3.amazonaws.com/cloudformation/farssh.yaml&stackName=farssh-default)
 
 For Subnets, be sure to select one or more *public* subnets, i.e. that are connected to an Internet Gateway.
 
